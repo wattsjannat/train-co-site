@@ -28,10 +28,9 @@ export function syncTeleState(
 }
 
 export async function disconnectTele() {
-  const fw = (window as any).Mobeus || (window as any).UIFramework;
+  const fw = (window as any).UIFramework;
   if (!fw) return;
   try {
-    if (typeof fw.disconnect === "function") await fw.disconnect();
     if (typeof fw.disconnectOpenAI === "function") await fw.disconnectOpenAI();
     if (typeof fw.disconnectAvatar === "function") await fw.disconnectAvatar();
   } catch (e) {
@@ -43,18 +42,71 @@ export async function connectTele(
   greetingPrompt?: string,
   onAvatarReady?: () => void
 ) {
-  // 1. Wait up to 5 s for Mobeus Widget to load
+  // 1. Wait up to 5s for UIFramework to load
   let attempts = 0;
-  while (!(window as any).Mobeus && !(window as any).UIFramework && attempts < 50) {
+  while (!(window as any).UIFramework && attempts < 50) {
     await new Promise((r) => setTimeout(r, 100));
     attempts++;
   }
 
-  // Support both new Mobeus Widget and legacy UIFramework
-  const fw = (window as any).Mobeus || (window as any).UIFramework;
+  const fw = (window as any).UIFramework;
   if (!fw) {
-    console.warn("[teleConnect] Mobeus Widget not available after 5s");
+    console.error("[teleConnect] UIFramework not available after 5s. Check CDN connection.");
     return;
+  }
+  
+  console.log("[teleConnect] UIFramework loaded");
+  
+  // Set agent API key for configuration loading
+  const apiKey = (window as any).MOBEUS_WIDGET_API_KEY || (window as any).UIFrameworkPreInitConfig?.apiKey;
+  if (apiKey) {
+    console.log("[teleConnect] Setting agent API key:", apiKey.substring(0, 15) + '...');
+    
+    // Try multiple methods to set the API key
+    if (fw.setWidgetApiKey && typeof fw.setWidgetApiKey === 'function') {
+      fw.setWidgetApiKey(apiKey);
+      console.log("[teleConnect] API key set via setWidgetApiKey");
+    }
+    if (fw.setAgentApiKey && typeof fw.setAgentApiKey === 'function') {
+      fw.setAgentApiKey(apiKey);
+      console.log("[teleConnect] API key set via setAgentApiKey");
+    }
+    if (fw.setApiKey && typeof fw.setApiKey === 'function') {
+      fw.setApiKey(apiKey);
+      console.log("[teleConnect] API key set via setApiKey");
+    }
+    
+    // Try to load agent configuration
+    if (fw.loadAgentConfig && typeof fw.loadAgentConfig === 'function') {
+      await fw.loadAgentConfig(apiKey);
+      console.log("[teleConnect] Agent config loaded from API");
+    } else if (fw.fetchAgentConfig && typeof fw.fetchAgentConfig === 'function') {
+      await fw.fetchAgentConfig(apiKey);
+      console.log("[teleConnect] Agent config fetched from API");
+    }
+    
+    // Force avatar and voice IDs from agent config
+    const avatarID = (window as any).MOBEUS_AVATAR_ID || '92329d89e4434e63b6260f9f374fffb0';
+    const voiceID = (window as any).MOBEUS_VOICE_ID || '8a4dfef7aacf4ad88c10ae9391bd3098';
+    
+    console.log("[teleConnect] Forcing avatar/voice IDs:", { avatarID, voiceID });
+    
+    // Set IDs directly on avatar model
+    const avatarModel = fw.instance?.avatarModel || fw.avatarModel;
+    if (avatarModel) {
+      avatarModel.avatarID = avatarID;
+      avatarModel.voiceID = voiceID;
+      console.log("[teleConnect] Avatar/voice IDs set on model");
+    }
+    
+    // Also try setting via controller
+    const avatarController = fw.instance?.avatarController || fw.avatarController;
+    if (avatarController && avatarController.setAvatarConfig) {
+      avatarController.setAvatarConfig({ avatarID, voiceID });
+      console.log("[teleConnect] Avatar/voice IDs set via controller");
+    }
+  } else {
+    console.warn("[teleConnect] No API key found");
   }
 
   // 2. Start connection (avatar stream + voice AI)
@@ -129,7 +181,7 @@ export async function connectTele(
     : ENGLISH_GATE +
       (greetingPrompt ??
         'Say "Are you ready to start your journey?" and call navigateToSection once with EXACTLY this JSON so the bubbles appear: ' +
-        '{"badge":"MOBEUS CAREER","title":"Welcome","subtitle":"Getting started",' +
+        '{"badge":"TRAIN CO CAREER","title":"Welcome","subtitle":"Getting started",' +
         '"generativeSubsections":[{"id":"start","templateId":"GlassmorphicOptions","props":{"bubbles":[' +
         '{"label":"Yes, I\'m ready"},{"label":"Not just yet"},{"label":"Tell me more"}]}}]}. ' +
         "HARD STOP after that navigateToSection: your turn is DONE. " +
@@ -141,13 +193,9 @@ export async function connectTele(
 }
 
 export async function connectVoiceOnly(): Promise<boolean> {
-  const fw = (window as any).Mobeus || (window as any).UIFramework;
+  const fw = (window as any).UIFramework;
   if (!fw) return false;
   try {
-    if (typeof fw.connect === "function") {
-      await fw.connect();
-      return true;
-    }
     if (typeof fw.connectOpenAI === "function") {
       await fw.connectOpenAI();
       return true;

@@ -33,11 +33,49 @@ export default function RootLayout({
           rel="stylesheet"
         />
         
-        {/* Mobeus Widget Script - New Platform */}
+        {/* UIFramework Pre-Configuration with Agent API Key */}
         <Script
-          src={`${process.env.NEXT_PUBLIC_WIDGET_HOST || 'https://app.mobeus.ai'}/widget.js`}
+          id="uiframework-preconfig"
+          strategy="beforeInteractive"
+          dangerouslySetInnerHTML={{__html: `
+            window.UIFRAMEWORK_AUTO_INIT = false;
+            window.UIFrameworkPreInitConfig = {
+              widgetApiKey: "${process.env.NEXT_PUBLIC_WIDGET_API_KEY || ''}",
+              agentApiKey: "${process.env.NEXT_PUBLIC_WIDGET_API_KEY || ''}",
+              apiKey: "${process.env.NEXT_PUBLIC_WIDGET_API_KEY || ''}",
+              autoConnect: false,
+              autoConnectAvatar: false,
+              autoConnectVoice: false,
+              waitForAvatarBeforeVoice: true,
+              voiceUIVisible: false,
+              muteByDefault: false,
+              enableVoiceChat: true,
+              enableAvatar: true,
+              useAgentConfig: true,
+              // Force avatar/voice from agent config (Jaya avatar + Liam voice)
+              avatarID: '92329d89e4434e63b6260f9f374fffb0',
+              voiceID: '8a4dfef7aacf4ad88c10ae9391bd3098',
+              lightboard: {
+                enabled: false,
+              },
+            };
+            
+            // Also set as global for UIFramework to pick up
+            window.MOBEUS_WIDGET_API_KEY = "${process.env.NEXT_PUBLIC_WIDGET_API_KEY || ''}";
+            window.AGENT_API_KEY = "${process.env.NEXT_PUBLIC_WIDGET_API_KEY || ''}";
+            
+            // Force avatar/voice IDs globally
+            window.MOBEUS_AVATAR_ID = '92329d89e4434e63b6260f9f374fffb0';
+            window.MOBEUS_VOICE_ID = '8a4dfef7aacf4ad88c10ae9391bd3098';
+            
+            console.log('[UIFramework] Pre-init config with API key and forced avatar/voice IDs');
+          `}}
+        />
+        
+        {/* UIFramework SDK - Agent Template System */}
+        <Script
+          src="https://telecdn.s3.us-east-2.amazonaws.com/js/ui-framework-liveavatar.js"
           strategy="afterInteractive"
-          data-api-key={process.env.NEXT_PUBLIC_WIDGET_API_KEY}
         />
       </head>
       <body className="antialiased">
