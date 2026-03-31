@@ -28,9 +28,10 @@ export function syncTeleState(
 }
 
 export async function disconnectTele() {
-  const fw = (window as any).UIFramework;
+  const fw = (window as any).Mobeus || (window as any).UIFramework;
   if (!fw) return;
   try {
+    if (typeof fw.disconnect === "function") await fw.disconnect();
     if (typeof fw.disconnectOpenAI === "function") await fw.disconnectOpenAI();
     if (typeof fw.disconnectAvatar === "function") await fw.disconnectAvatar();
   } catch (e) {
@@ -42,16 +43,17 @@ export async function connectTele(
   greetingPrompt?: string,
   onAvatarReady?: () => void
 ) {
-  // 1. Wait up to 5 s for CDN script to load
+  // 1. Wait up to 5 s for Mobeus Widget to load
   let attempts = 0;
-  while (!(window as any).UIFramework && attempts < 50) {
+  while (!(window as any).Mobeus && !(window as any).UIFramework && attempts < 50) {
     await new Promise((r) => setTimeout(r, 100));
     attempts++;
   }
 
-  const fw = (window as any).UIFramework;
+  // Support both new Mobeus Widget and legacy UIFramework
+  const fw = (window as any).Mobeus || (window as any).UIFramework;
   if (!fw) {
-    console.warn("[teleConnect] UIFramework not available after 5s");
+    console.warn("[teleConnect] Mobeus Widget not available after 5s");
     return;
   }
 
@@ -139,9 +141,13 @@ export async function connectTele(
 }
 
 export async function connectVoiceOnly(): Promise<boolean> {
-  const fw = (window as any).UIFramework;
+  const fw = (window as any).Mobeus || (window as any).UIFramework;
   if (!fw) return false;
   try {
+    if (typeof fw.connect === "function") {
+      await fw.connect();
+      return true;
+    }
     if (typeof fw.connectOpenAI === "function") {
       await fw.connectOpenAI();
       return true;
