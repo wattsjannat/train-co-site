@@ -104,8 +104,22 @@ export const DSL_SCHEMA: Record<string, { pipeCount: number; fields: string[] }>
     'image-card':        { pipeCount: 3, fields: ['imageUrl','caption','subtitle'] },
     'calendar':          { pipeCount: 1, fields: ['title'] },
     'cal-event':         { pipeCount: 5, fields: ['title','date','time','duration','status'] },
+    'avatar-screen':     { pipeCount: 5, fields: ['question','questionWide','progressStep','progressTotal','showProgress'] },
+    // Trainco flat cards
+    'job-card':          { pipeCount: 6, fields: ['title','company','companyLogo','salary','location','matchScore','fitCategory'] },
+    'circular-gauge':    { pipeCount: 4, fields: ['label','percentage','size','accent','subtitle'] },
+    'level-meter':       { pipeCount: 5, fields: ['label','current','target','variant','subtitle'] },
+    'simple-progress':   { pipeCount: 4, fields: ['label','percent','color','subtitle'] },
+    // Trainco container cards
+    'skill-progress':    { pipeCount: 1, fields: ['title'] },
+    'path-track':        { pipeCount: 4, fields: ['label','fromLabel','toLabel','percentage'] },
+    'trend-line':        { pipeCount: 2, fields: ['title','showLabels'] },
     'risk-matrix':       { pipeCount: 1, fields: ['title'] },
     'risk':              { pipeCount: 3, fields: ['label','likelihood','impact'] },
+    // Trainco item lines
+    'skill':             { pipeCount: 4, fields: ['label','filled','target','value'] },
+    'path-stop':         { pipeCount: 2, fields: ['label','status'] },
+    'trend-point':       { pipeCount: 2, fields: ['month','score'] },
     'stacked-bar':       { pipeCount: 2, fields: ['title','unit'] },
     'sbar':              { pipeCount: 4, fields: ['group','label','value','color'] },
     'table':             { pipeCount: 2, fields: ['title','headers (semicolon-delimited)'] },
@@ -141,6 +155,10 @@ const CONTAINER_ITEM_PREFIXES: Record<string, string> = {
     'table':             'trow',
     'comparison-table':  'crow',
     'heatmap':           'hrow',
+    // Trainco containers
+    'skill-progress':    'skill',
+    'path-track':        'path-stop',
+    'trend-line':        'trend-point',
 };
 
 const CONTAINER_TYPES   = new Set(Object.keys(CONTAINER_ITEM_PREFIXES));
@@ -148,6 +166,9 @@ const ALL_ITEM_PREFIXES = new Set(Object.values(CONTAINER_ITEM_PREFIXES));
 const FLAT_TYPES        = new Set([
     'stat', 'callout', 'person-card', 'relationship-card',
     'incident-card', 'info-card', 'country-card', 'image-card',
+    'avatar-screen',
+    // Trainco flat cards
+    'job-card', 'circular-gauge', 'level-meter', 'simple-progress',
 ]);
 
 // ── Item parsers ──────────────────────────────────────────────────────────────
@@ -276,6 +297,23 @@ function parseItem(prefix: string, fields: string[]): Record<string, any> | null
             const [rowLabel, ...vals] = fields;
             return { rowLabel: n(rowLabel) ?? '', values: vals.map(v => f(v)) };
         }
+        case 'skill': {
+            const [label, filledStr, targetStr, value] = fields;
+            return {
+                label: n(label) ?? '',
+                filled: parseInt(n(filledStr) ?? '0', 10),
+                target: n(targetStr) ? parseInt(n(targetStr) ?? '0', 10) : undefined,
+                value: n(value),
+            };
+        }
+        case 'path-stop': {
+            const [label, status] = fields;
+            return { label: n(label) ?? '', status: n(status) ?? 'upcoming' };
+        }
+        case 'trend-point': {
+            const [month, scoreStr] = fields;
+            return { month: n(month) ?? '', score: f(scoreStr) };
+        }
         default:
             return null;
     }
@@ -321,6 +359,58 @@ function parseFlatCard(type: string, fields: string[], span?: 'full'): CardDef |
             const [imageUrl, caption, subtitle] = fields;
             return Object.assign(card, { imageUrl: n(imageUrl), caption: n(caption), subtitle: n(subtitle) });
         }
+        case 'avatar-screen': {
+            const [question, questionWideStr, progressStepStr, progressTotalStr, showProgressStr] = fields;
+            const item: CardDef = Object.assign(card, { question: n(question) });
+            if (b(questionWideStr)) item.questionWide = true;
+            if (n(progressStepStr)) item.progressStep = parseInt(n(progressStepStr) ?? '0', 10);
+            if (n(progressTotalStr)) item.progressTotal = parseInt(n(progressTotalStr) ?? '4', 10);
+            if (n(showProgressStr)) item.showProgress = b(showProgressStr);
+            return item;
+        }
+        case 'job-card': {
+            const [title, company, companyLogo, salary, location, matchScoreStr, fitCategory] = fields;
+            const item: CardDef = Object.assign(card, {
+                title: n(title) ?? '',
+                company: n(company) ?? '',
+            });
+            if (n(companyLogo)) item.companyLogo = n(companyLogo);
+            if (n(salary)) item.salary = n(salary);
+            if (n(location)) item.location = n(location);
+            if (n(matchScoreStr)) item.matchScore = parseInt(n(matchScoreStr) ?? '0', 10);
+            if (n(fitCategory)) item.fitCategory = n(fitCategory);
+            return item;
+        }
+        case 'circular-gauge': {
+            const [label, percentageStr, sizeStr, accent, subtitle] = fields;
+            const item: CardDef = Object.assign(card, { label: n(label) ?? '' });
+            if (n(percentageStr)) item.percentage = parseInt(n(percentageStr) ?? '0', 10);
+            if (n(sizeStr)) item.size = parseInt(n(sizeStr) ?? '98', 10);
+            if (n(accent)) item.accent = n(accent);
+            if (n(subtitle)) item.subtitle = n(subtitle);
+            return item;
+        }
+        case 'level-meter': {
+            const [label, currentStr, targetStr, variant, subtitle] = fields;
+            const item: CardDef = Object.assign(card, {
+                label: n(label) ?? '',
+                current: parseInt(n(currentStr) ?? '0', 10),
+                target: parseInt(n(targetStr) ?? '0', 10),
+            });
+            if (n(variant)) item.variant = n(variant);
+            if (n(subtitle)) item.subtitle = n(subtitle);
+            return item;
+        }
+        case 'simple-progress': {
+            const [label, percentStr, color, subtitle] = fields;
+            const item: CardDef = Object.assign(card, {
+                label: n(label) ?? '',
+                percent: parseInt(n(percentStr) ?? '0', 10),
+            });
+            if (n(color)) item.color = n(color);
+            if (n(subtitle)) item.subtitle = n(subtitle);
+            return item;
+        }
         default:
             return null;
     }
@@ -339,6 +429,12 @@ interface ContainerMeta {
     consequence?: string;
     owner?: string;
     headers?: string[];  // table, comparison-table, heatmap column headers
+    // Trainco fields
+    label?: string;
+    fromLabel?: string;
+    toLabel?: string;
+    percentage?: number;
+    showLabels?: boolean;
 }
 
 function parseContainerHeader(type: string, fields: string[]): ContainerMeta {
@@ -370,6 +466,21 @@ function parseContainerHeader(type: string, fields: string[]): ContainerMeta {
         }
         case 'stacked-bar':
             return { title: n(fields[0]), unit: n(fields[1]) };
+        case 'skill-progress':
+            return { title: n(fields[0]) };
+        case 'path-track': {
+            const [label, fromLabel, toLabel, percentageStr] = fields;
+            return {
+                label: n(label),
+                fromLabel: n(fromLabel),
+                toLabel: n(toLabel),
+                percentage: parseInt(n(percentageStr) ?? '0', 10),
+            };
+        }
+        case 'trend-line': {
+            const [title, showLabelsStr] = fields;
+            return { title: n(title), showLabels: b(showLabelsStr) };
+        }
         default:
             return { title: n(fields[0]) };
     }
@@ -493,6 +604,20 @@ function flushContainer(
             );
             break;
         }
+        case 'skill-progress':
+            card.skills = items;
+            break;
+        case 'path-track':
+            if (meta.label) card.label = meta.label;
+            if (meta.fromLabel) card.fromLabel = meta.fromLabel;
+            if (meta.toLabel) card.toLabel = meta.toLabel;
+            if (meta.percentage !== undefined) card.percentage = meta.percentage;
+            card.stops = items;
+            break;
+        case 'trend-line':
+            if (meta.showLabels !== undefined) card.showLabels = meta.showLabels;
+            card.data = items;
+            break;
     }
 
     cards.push(card);

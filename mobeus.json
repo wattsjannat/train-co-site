@@ -1,0 +1,9 @@
+{
+  "runtime": "nodejs",
+  "buildCommand": "npm install && npm run build",
+  "startCommand": "npm start",
+  "outputDirectory": ".next",
+  "installCommand": "npm install",
+  "framework": "nextjs-server",
+  "nodeVersion": "20.x"
+}

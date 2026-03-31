@@ -1,0 +1,464 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  bg-layer::part(layer) {
+    overflow: hidden;
+    background: transparent!important;
+  }
+
+  bg-layer::part(avatarVideo) {
+    width: 100%;
+    height: 90%;
+    top: 100px;
+    left: 0px;
+  }
+
+  /* bg-layer::part(layer)::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    box-shadow: inset 0 0 100px 50px var(--bg-deep);
+    pointer-events: none;
+  } */
+
+  :root,
+  :root[data-ui-mode="video"],
+  :root.ui-mode-video {
+    --font-sans: 'Inter', system-ui, sans-serif;
+    --background: 240 10% 4%;
+    --foreground: 0 0% 98%;
+    --border: 240 4% 16%;
+
+    --bg: #0B1213;
+    --bg-deep: #0a0f0d;
+    --bg-sheet: #09090B;
+    --background-overlay: rgba(0, 0, 0, 0.5);
+    --spotlight-fill: rgba(217, 217, 217, 0.15);
+    --surface: rgba(16, 42, 40, 0.4);
+    --surface-muted: rgba(39, 39, 42, 0.9);
+    --surface-elevated: rgba(255, 255, 255, 0.05);
+    --border-soft: rgba(255, 255, 255, 0.1);
+    --border-strong: #3f3f47;
+    --text-primary: #fafafa;
+    --text-secondary: #f4f4f5;
+    --text-muted: #d4d4d8;
+    --text-subtle: rgba(255, 255, 255, 0.5);
+    --accent: #1dc558;
+    --accent-strong: #1ed25e;
+    --accent-light: #a5e8bc;
+    --accent-contrast: #18181b;
+    --warning: #f59e0b;
+    --surface-card: #18181b;
+    --border-card: #27272a;
+    /* Bottom nav — Figma Design System 6958:15887 (active capsule + inactive icons) */
+    --surface-bottom-nav-capsule: #1c1c1e;
+    --text-bottom-nav-icon-muted: #9f9faa;
+    --shadow-bottom-nav-pill: 0px 0px 8px 0px rgba(255, 255, 255, 0.25);
+    --text-dim: #a1a1aa;
+    --text-label: #71717b;
+    --avatar-bg: #ffdabf;
+    --linkedin: #0a66c2;
+    --error: #ef4444;
+    --error-surface: rgba(239, 68, 68, 0.25);
+    --error-border: rgba(239, 68, 68, 0.5);
+    --glass-btn: rgba(255, 255, 255, 0.1);
+    --glass-btn-border: rgba(255, 255, 255, 0.12);
+
+    /* Surface opacity scale */
+    --surface-dim: rgba(255, 255, 255, 0.04);
+    --surface-subtle: rgba(255, 255, 255, 0.06);
+    --surface-faint: rgba(255, 255, 255, 0.07);
+    --surface-hover: rgba(255, 255, 255, 0.08);
+    --surface-active: rgba(255, 255, 255, 0.12);
+    --surface-active-strong: rgba(255, 255, 255, 0.14);
+    --surface-modal: rgba(18, 18, 20, 0.97);
+    --surface-pill: rgba(18, 18, 20, 0.92);
+    --surface-sidebar: rgba(255, 255, 255, 0.02);
+
+    /* Extended border scale */
+    --border-subtle: rgba(255, 255, 255, 0.08);
+    --border-faint: rgba(255, 255, 255, 0.09);
+    --border-ghost: rgba(255, 255, 255, 0.07);
+    --border-medium: rgba(255, 255, 255, 0.15);
+    --border-whisper: rgba(255, 255, 255, 0.06);
+
+    /* Text extended */
+    --text-placeholder: rgba(255, 255, 255, 0.2);
+
+    /* Accent extended */
+    --accent-medium: rgba(29, 197, 88, 0.5);
+    --accent-surface: rgba(29, 197, 88, 0.1);
+    --accent-surface-subtle: rgba(30, 210, 94, 0.08);
+    --accent-border-subtle: rgba(30, 210, 94, 0.2);
+    --accent-glow: rgba(30, 210, 94, 0.07);
+
+    /* Error extended */
+    --error-surface-subtle: rgba(239, 68, 68, 0.08);
+    --error-border-subtle: rgba(239, 68, 68, 0.2);
+
+    /* Purple (fit-grow) scale */
+    --fit-grow-surface: rgba(167, 139, 250, 0.1);
+    --fit-grow-border: rgba(167, 139, 250, 0.2);
+    --fit-grow-surface-strong: rgba(167, 139, 250, 0.15);
+    --fit-grow-border-strong: rgba(167, 139, 250, 0.3);
+
+    /* Shadow */
+    --shadow-overlay: rgba(0, 0, 0, 0.4);
+
+    /* Composite */
+    --avatar-gradient: linear-gradient(135deg, #1ed25e 0%, #51a2ff 100%);
+    --fit-good: #34d399;
+    --fit-good-light: #a5f3d0;
+    --fit-stretch: #51a2ff;
+    --fit-stretch-light: #93c5fd;
+    --fit-grow: #a78bfa;
+    --fit-grow-light: #c4b5fd;
+    --text-skill-evidence: #8ba89a;
+    --roi-very-high: #a684ff;
+    --roi-very-high-bg: rgba(166, 132, 255, 0.08);
+    --roi-very-high-icon: rgba(166, 132, 255, 0.09);
+    --roi-high: #51a2ff;
+    --roi-high-bg: rgba(81, 162, 255, 0.08);
+    --roi-high-icon: rgba(81, 162, 255, 0.09);
+    --bar-track: #27272a;
+    --bar-positive: #1dc558;
+    --bar-positive-end: #34d399;
+    --bar-negative: #ef4444;
+    --bar-neutral: #71717a;
+    --insight-bg: rgba(29, 197, 88, 0.05);
+    --insight-border: rgba(29, 197, 88, 0.2);
+    --investment-row-bg: rgba(255, 255, 255, 0.03);
+    --investment-row-border: rgba(255, 255, 255, 0.04);
+    --bar-positive-muted: rgba(29, 197, 88, 0.3);
+    --comp-bar-past: rgba(54, 137, 255, 0.35)!important;
+    --comp-bar-current: rgba(54, 137, 255, 1)!important;
+    --comp-bar-projected: rgba(86, 155, 114, 1)!important;
+    --comp-bar-target: rgba(29, 197, 88, 1)!important;
+    --stat-bg: rgba(255, 255, 255, 0.03);
+    --funnel-bar-blue: #3689ff!important;
+    --funnel-bar-blue-muted: rgba(54, 137, 255, 0.15);
+    --bar-inactive: rgba(255, 255, 255, 0.25);
+    --funnel-badge-blue: rgba(29, 50, 81, 0.5);
+    --funnel-badge-green: rgba(29, 197, 88, 0.09);
+    --focus-bg-warning: rgba(255, 201, 64, 0.08);
+    --focus-text-warning: #ffc940;
+    --achievement-icon-bg: rgba(29, 197, 88, 0.1);
+    --text-body: #e4e4e7;
+    --text-zinc: #52525b;
+    --skill-bar-gradient-start: #1dc558;
+    --skill-bar-gradient-end: #3689ff;
+    --divider: rgba(255, 255, 255, 0.05);
+    --shadow-soft: 0 0 8px 0 rgba(255, 255, 255, 0.25);
+    --border-accent-soft: rgba(30, 210, 94, 0.4);
+
+    /* Blue funnel surface / border */
+    --funnel-bar-blue-surface: rgba(54, 137, 255, 0.05);
+    --funnel-bar-blue-border: rgba(54, 137, 255, 0.2);
+    --funnel-bar-blue-25: rgba(54, 137, 255, 0.25);
+    --funnel-bar-blue-10: rgba(54, 137, 255, 0.1);
+    --funnel-bar-blue-30: rgba(54, 137, 255, 0.3);
+    --bar-track-light: rgba(255, 255, 255, 0.33);
+
+    /* Career path nodes */
+    --career-dot-mid: #69d88f;
+    --career-node-surface: rgba(29, 197, 88, 0.2);
+    --career-node-shadow: 0px 0px 30px 0px rgba(29, 197, 88, 0.38), 0px 0px 50px 0px rgba(29, 197, 88, 0.19);
+    --career-pill-shadow: 0px 0px 15px 0px rgba(29, 197, 88, 0.19);
+    --career-next-shadow: 0px 0px 30px 0px rgba(54, 137, 255, 0.25);
+
+    /* Zinc scale */
+    --text-zinc-100: #f4f4f5;
+    --text-zinc-500: #71717a;
+    --text-zinc-600: #52525b;
+    --border-zinc-500: #4b5563;
+    --tag-surface: rgba(28, 28, 30, 0.15);
+
+    /* Lesson / learning */
+    --lesson-video: #4ade80;
+    --lesson-reading: #60a5fa;
+    --lesson-handson: #c084fc;
+
+    /* Brand logos */
+    --brand-aws: #232F3E;
+    --brand-pearson: #003082;
+
+    /* Code block / syntax theme */
+    --surface-code: #0d1117;
+    --border-code: #30363d;
+    --text-code-dim: #8b949e;
+    --code-key: #7ee787;
+    --code-value: #e6edf3;
+    --code-number: #79c0ff;
+
+    /* Glass / dim surfaces */
+    --surface-glass: rgba(18, 18, 20, 0.82);
+    --surface-btn-dim: rgba(16, 42, 40, 0.2);
+    --shadow-btn: 0px 4px 4px 0px rgba(0, 0, 0, 0.25);
+
+    /* Video player */
+    --play-btn-bg: rgba(99, 179, 237, 0.2);
+    --play-btn-border: rgba(99, 179, 237, 0.5);
+    --play-btn-fg: #63b3ed;
+
+    --avatar-glow-gradient: radial-gradient(
+      ellipse 55.48% 55.48% at 50% 43.01%,
+      rgba(30, 210, 94, 0.6) 34%,
+      rgba(54, 137, 255, 0.6) 100%
+    );
+    --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.3),
+      inset 0 1px 1px rgba(255, 255, 255, 0.5),
+      inset 0 0 20px rgba(255, 255, 255, 0.1);
+    --glass-shadow-active: 0 12px 40px rgba(0, 0, 0, 0.4),
+      inset 0 1px 2px rgba(255, 255, 255, 0.4),
+      inset 0 0 15px rgba(52, 211, 153, 0.3);
+  }
+
+  :root[data-ui-mode="voice"],
+  :root.ui-mode-voice {
+    --surface: rgba(25, 25, 28, 0.92);
+    --surface-muted: rgba(44, 44, 50, 0.95);
+    --border-soft: rgba(255, 255, 255, 0.14);
+    --text-muted: #e4e4e7;
+  }
+
+  :root[data-ui-mode="chat"],
+  :root.ui-mode-chat {
+  /* Base page background */
+  --bg: #09090b;
+  --surface-page: #09090b;
+  /* Gradient overlay (1st screenshot) – exact spec */
+  --chat-gradient-overlay: linear-gradient(
+    180deg,
+    rgba(10, 10, 10, 0.00) 8.07%,
+    #0a0a0a 76.27%
+  );
+  /* Ellipse (5th screenshot) */
+  --chat-ellipse-gradient: radial-gradient(
+    55.48% 55.48% at 50% 43.01%,
+    rgba(30, 210, 94, 0.6) 33.65%,
+    rgba(54, 137, 255, 0.6) 100%
+  );
+  --chat-ellipse-blur: 96px;
+  --surface: rgba(26, 26, 26, 0.95);
+  --surface-muted: rgba(42, 42, 42, 0.95);
+  --border-soft: rgba(255, 255, 255, 0.12);
+  --accent: #1ed25e;
+  --accent-strong: #2ade6c;
+  --text-primary: #ffffff;
+  --text-secondary: #f4f4f5;
+  --text-muted: #d4d4d8;
+  }
+
+  * {
+    @apply border-border;
+    box-sizing: border-box;
+  }
+
+  html,
+  body {
+    @apply bg-background text-foreground;
+    background-color: var(--bg);
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    height: 100%;
+    overflow: hidden;
+  }
+
+  #root {
+    height: 100%;
+    overflow: hidden;
+  }
+}
+
+@layer components {
+  .glass-card {
+    background: var(--surface);
+    border: 1px solid var(--border-soft);
+    backdrop-filter: blur(29px);
+    -webkit-backdrop-filter: blur(29px);
+    box-shadow: var(--glass-shadow);
+  }
+
+  .glass-card-active {
+    background: rgba(12, 79, 35, 0.45);
+    border: 1px solid rgba(52, 211, 153, 0.3);
+    backdrop-filter: blur(29px);
+    -webkit-backdrop-filter: blur(29px);
+    box-shadow: var(--glass-shadow-active);
+  }
+
+  .top-sheen::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    background: linear-gradient(to bottom, rgba(255, 255, 255, 0.1), transparent);
+  }
+
+  .btn-primary {
+    background-color: var(--accent)!important;
+    color: var(--accent-contrast);
+    border-radius: 10px;
+    box-shadow: 0 4px 4px rgba(0, 0, 0, 0.25);
+  }
+
+  .btn-secondary {
+    background: var(--surface-muted);
+    color: var(--text-primary);
+    border: 1px solid var(--border-strong);
+    border-radius: 10px;
+  }
+
+  .input {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border-soft);
+    border-radius: 10px;
+  }
+}
+
+@layer utilities {
+  /* Glassmorphism surfaces */
+  .glass-surface {
+    background: rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  /* Chat mode: gradient overlay (1st screenshot) */
+  .chat-mode-gradient-overlay {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+    max-width: 440px;
+    height: 316px;
+    margin: 0 auto;
+    background: var(--chat-gradient-overlay);
+    pointer-events: none;
+    z-index: 0;
+  }
+  /* Chat mode: ellipse glow (5th screenshot) */
+  .chat-mode-ellipse {
+    position: absolute;
+    left: 33px;
+    top: 188px;
+    width: 373px;
+    height: 429px;
+    flex-shrink: 0;
+    border-radius: 429px;
+    background: var(--chat-ellipse-gradient);
+    filter: blur(var(--chat-ellipse-blur, 96px));
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* Chat mode: option chips (Technology, Finance, etc.) */
+  .chat-option-chip {
+    display: inline-flex;
+    padding: 12px 16px;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+    background: rgba(16, 42, 40, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: #ffffff;
+  }
+
+  .glass-card-utility {
+    background: rgba(9, 9, 11, 0.85);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  /* Answer bubbles */
+  .answer-bubble {
+    background: rgba(39, 39, 42, 0.6);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .answer-bubble-green {
+    background: rgba(16, 42, 40, 0.5);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(29, 197, 88, 0.3);
+  }
+
+  /* Green glow effects */
+  .green-glow {
+    box-shadow: 0 0 40px rgba(29, 197, 88, 0.3), 0 0 80px rgba(29, 197, 88, 0.1);
+  }
+
+  .green-glow-sm {
+    box-shadow: 0 0 15px rgba(29, 197, 88, 0.4);
+  }
+
+  /* Avatar radial glow background */
+  .avatar-glow {
+    background: radial-gradient(
+      ellipse 60% 50% at 50% 60%,
+      rgba(29, 197, 88, 0.25) 0%,
+      rgba(29, 197, 88, 0.05) 50%,
+      transparent 100%
+    );
+  }
+
+  /* Question pill */
+  .question-pill {
+    background: rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+  }
+
+  /* Highlight animation for bubbles */
+  .highlight-pulse {
+    animation: highlight-pulse 1.5s ease-in-out 2;
+  }
+
+  @keyframes highlight-pulse {
+    0%, 100% {
+      border-color: rgba(29, 197, 88, 0.3);
+      box-shadow: 0 0 0 0 rgba(29, 197, 88, 0.4);
+    }
+    50% {
+      border-color: rgba(29, 197, 88, 0.8);
+      box-shadow: 0 0 0 8px rgba(29, 197, 88, 0);
+    }
+  }
+
+  /* Safe area insets for mobile */
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  .safe-top {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+}
+
+.solid-bg-deep {
+  background: #0a0f0d !important;
+  background-color: #0a0f0d !important;
+}
+
+.bar-color {
+  background: var(--_bar) !important;
+}
+
+/* BaseLayout edge fades: stylesheet + !important survives UIFramework inline overrides.
+   Pair with class `no-lightboard` on the same nodes so lightboard CTA injection is skipped. */
+[data-testid="base-layout-gradient-bottom"] {
+  background: linear-gradient(to top, var(--bg) 28%, transparent 100%) !important;
+}
+
+[data-testid="base-layout-gradient-top"] {
+  background: linear-gradient(to bottom, var(--bg) 33%, transparent 100%) !important;
+}

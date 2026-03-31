@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: trainco-career
+    env: node
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NEXT_PUBLIC_AGENT_NAME
+        value: Trainco AI

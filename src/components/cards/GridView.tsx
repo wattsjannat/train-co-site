@@ -5,31 +5,23 @@ import { resolveFooters } from '@/utils/footerResolver';
 import { informTele } from '@/utils/informTele';
 import type { CardDef } from '@/types/cards';
 import {
-    // Core Data (9)
-    KPIStrip, BarChart, DonutChart, LineChart, TableCard,
-    MetricList, AlertCard, StatCard, CalloutCard,
-    // Data Visualization (4)
-    HeatmapCard, TimelineCard, WaterfallCard, StackedBarCard,
-    // People & Org (2)
-    PersonCard, OrgRoster,
-    // Rich Content (4)
-    ChecklistCard, InfoCard, BulletListCard, ImageCard,
-    // Comparison (2)
-    ComparisonTable, RankedListCard,
-    // Operational (3)
-    IncidentCard, PipelineCard, RiskMatrixCard,
-    // Executive Action (2)
-    DecisionCard, DelegationCard,
-    // Cross-Domain Intelligence (4)
-    RelationshipCard, CountryCard, DataClusterCard, CalendarCard,
+    // Trainco Components
+    AvatarScreen,
+    GlassmorphicJobCard,
+    JobCard,
+    CircularGaugeCard,
+    SkillProgressCard,
+    PathTrackCard,
+    LevelMeterCard,
+    TrendLineCard,
+    SimpleProgressCard,
 } from '@/components/cards';
 
 /* ═══════════════════════════════════════════════════════════
-   GridView — Composable Grid Template (30 Card Types)
+   GridView — Trainco Career AI Grid Template
    
-   A single template that accepts a layout code and an array
-   of card definitions. The tele fills it dynamically for any
-   executive perspective (CTO, CMO, CFO, HR, GC, AI, etc.).
+   A composable grid template for displaying Trainco career
+   components including job cards, skill progress, and gauges.
    ═══════════════════════════════════════════════════════════ */
 
 /* ═══ Types ═══ */
@@ -45,72 +37,31 @@ interface GridViewProps {
 /* ═══ Card Renderer — 30 Card Types ═══ */
 
 const CARD_MAP: Record<string, React.FC<any>> = {
-    // Core Data (9)
-    'kpi-strip': KPIStrip,
-    'bar-chart': BarChart,
-    'donut': DonutChart,
-    'line-chart': LineChart,
-    'table': TableCard,
-    'metric-list': MetricList,
-    'alert': AlertCard,
-    'stat': StatCard,
-    'callout': CalloutCard,
-    // Data Visualization (4)
-    'heatmap': HeatmapCard,
-    'timeline': TimelineCard,
-    'waterfall': WaterfallCard,
-    'stacked-bar': StackedBarCard,
-    // People & Organization (2)
-    'person-card': PersonCard,
-    'org-roster': OrgRoster,
-    // Rich Content (4)
-    'checklist': ChecklistCard,
-    'info-card': InfoCard,
-    'bullet-list': BulletListCard,
-    'image-card': ImageCard,
-    // Comparison (2)
-    'comparison-table': ComparisonTable,
-    'ranked-list': RankedListCard,
-    // Operational (3)
-    'incident-card': IncidentCard,
-    'pipeline-card': PipelineCard,
-    'pipeline': PipelineCard,       // alias — parseDSL emits 'pipeline', not 'pipeline-card'
-    'risk-matrix': RiskMatrixCard,
-    // Executive Action (2)
-    'decision-card': DecisionCard,
-    'delegation-card': DelegationCard,
-    // Cross-Domain Intelligence (4)
-    'relationship-card': RelationshipCard,
-    'country-card': CountryCard,
-    'data-cluster': DataClusterCard,
-    'calendar': CalendarCard,
-    // Aliases — common hallucinated type names
-    'profile-roster': OrgRoster,
-    'area-chart': LineChart,
-    'progress': BarChart,
+    // Trainco Components
+    'avatar-screen': AvatarScreen,
+    'glassmorphic-job': GlassmorphicJobCard,
+    'job-card': JobCard,
+    'circular-gauge': CircularGaugeCard,
+    'skill-progress': SkillProgressCard,
+    'path-track': PathTrackCard,
+    'level-meter': LevelMeterCard,
+    'trend-line': TrendLineCard,
+    'simple-progress': SimpleProgressCard,
 };
 
 /* ═══ Card Size Tiers — flex-grow weights for row height distribution ═══ */
 
 const CARD_SIZE: Record<string, number> = {
-    // sm (compact) — strip only → flex-grow: 1
-    'kpi-strip': 1,
-    // md (standard) — stats, lists, moderate content → flex-grow: 2
-    'stat': 2, 'callout': 2,
-    'image-card': 2, 'person-card': 2,
-    'alert': 2, 'metric-list': 2,
-    'bullet-list': 2, 'info-card': 2,
-    'data-cluster': 2, 'checklist': 2, 'org-roster': 2,
-    'pipeline-card': 2, 'ranked-list': 2,
-    'timeline': 2, 'calendar': 2,
-    // lg (expansive) — charts, tables, maps → flex-grow: 3
-    'bar-chart': 3, 'donut': 3, 'line-chart': 3, 'table': 3,
-    'heatmap': 3, 'waterfall': 3, 'stacked-bar': 3,
-    'comparison-table': 3, 'incident-card': 3, 'risk-matrix': 3,
-    // Executive Action
-    'decision-card': 2, 'delegation-card': 2,
-    // Cross-Domain Intelligence
-    'relationship-card': 2, 'country-card': 2,
+    // Trainco Components
+    'avatar-screen': 3,
+    'glassmorphic-job': 2,
+    'job-card': 2,
+    'circular-gauge': 2,
+    'skill-progress': 2,
+    'path-track': 2,
+    'level-meter': 2,
+    'trend-line': 2,
+    'simple-progress': 2,
 };
 
 function getRowWeight(rowCards: CardDef[]): number {

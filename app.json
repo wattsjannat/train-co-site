@@ -1,0 +1,27 @@
+{
+  "name": "trainco-career",
+  "description": "Trainco Career AI Assistant",
+  "repository": "https://github.com/wattsjannat/test-site-2",
+  "keywords": ["nextjs", "nodejs", "career", "ai"],
+  "buildpacks": [
+    {
+      "url": "heroku/nodejs"
+    }
+  ],
+  "formation": {
+    "web": {
+      "quantity": 1
+    }
+  },
+  "scripts": {
+    "postdeploy": "echo 'Deployment complete'"
+  },
+  "env": {
+    "NODE_ENV": {
+      "value": "production"
+    },
+    "NEXT_PUBLIC_AGENT_NAME": {
+      "value": "Trainco AI"
+    }
+  }
+}
