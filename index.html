@@ -12,9 +12,11 @@
     <meta name="theme-color" content="#09090b" />
 
     <script>
-      window.UIFRAMEWORK_AUTO_INIT = true;
+      window.UIFRAMEWORK_AUTO_INIT = false;
       window.UIFrameworkPreInitConfig = {
-        explicitTenantUuid: "4e93127e-0dcc-432b-8c27-ed32f064d59e",
+        widgetApiKey: import.meta.env.NEXT_PUBLIC_WIDGET_API_KEY || '',
+        agentApiKey: import.meta.env.NEXT_PUBLIC_WIDGET_API_KEY || '',
+        apiKey: import.meta.env.NEXT_PUBLIC_WIDGET_API_KEY || '',
         autoConnect: false,
         autoConnectAvatar: false,
         autoConnectVoice: false,
@@ -23,11 +25,20 @@
         muteByDefault: false,
         enableVoiceChat: true,
         enableAvatar: true,
-        // enableLightboard: false,
+        useAgentConfig: true,
+        avatarID: '92329d89e4434e63b6260f9f374fffb0',
+        voiceID: '8a4dfef7aacf4ad88c10ae9391bd3098',
         lightboard: {
           enabled: false,
         },
       };
+      
+      window.MOBEUS_WIDGET_API_KEY = import.meta.env.NEXT_PUBLIC_WIDGET_API_KEY || '';
+      window.AGENT_API_KEY = import.meta.env.NEXT_PUBLIC_WIDGET_API_KEY || '';
+      window.MOBEUS_AVATAR_ID = '92329d89e4434e63b6260f9f374fffb0';
+      window.MOBEUS_VOICE_ID = '8a4dfef7aacf4ad88c10ae9391bd3098';
+      
+      console.log('[UIFramework] Pre-init config with API key (Mobeus 2.0)');
     </script>
 
     <script>
