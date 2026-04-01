@@ -1,15 +1,12 @@
-import { navigationResponse } from './helpers';
+import { uiResponse } from './helpers';
 
 export default function journeyWelcomeRoleConstruction() {
-  return navigationResponse({
+  return uiResponse({
     badge: 'MOBEUS CAREER',
     title: 'Qualification',
     subtitle: 'Step 2 of 3',
-    generativeSubsections: [{
-      id: 'welcome-role-construction',
-      templateId: 'MultiSelectOptions',
-      props: {
-        bubbles: [
+    type: 'MultiSelectOptions',
+    bubbles: [
           { label: 'Civil & Structural Engineering' },
           { label: 'Architecture' },
           { label: 'Project Management' },
@@ -20,7 +17,5 @@ export default function journeyWelcomeRoleConstruction() {
         showProgress: true,
         progressStep: 1,
         progressTotal: 3,
-      },
-    }],
   });
 }

@@ -1,15 +1,12 @@
-import { navigationResponse } from './helpers';
+import { uiResponse } from './helpers';
 
 export default function journeyWelcomeRoleFinance() {
-  return navigationResponse({
+  return uiResponse({
     badge: 'MOBEUS CAREER',
     title: 'Qualification',
     subtitle: 'Step 2 of 3',
-    generativeSubsections: [{
-      id: 'welcome-role-finance',
-      templateId: 'MultiSelectOptions',
-      props: {
-        bubbles: [
+    type: 'MultiSelectOptions',
+    bubbles: [
           { label: 'Investment & Banking' },
           { label: 'Accounting & Audit' },
           { label: 'Risk & Compliance' },
@@ -20,7 +17,5 @@ export default function journeyWelcomeRoleFinance() {
         showProgress: true,
         progressStep: 1,
         progressTotal: 3,
-      },
-    }],
   });
 }

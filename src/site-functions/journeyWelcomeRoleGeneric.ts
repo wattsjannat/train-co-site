@@ -1,15 +1,12 @@
-import { navigationResponse } from './helpers';
+import { uiResponse } from './helpers';
 
 export default function journeyWelcomeRoleGeneric() {
-  return navigationResponse({
+  return uiResponse({
     badge: 'MOBEUS CAREER',
     title: 'Qualification',
     subtitle: 'Step 2 of 3',
-    generativeSubsections: [{
-      id: 'welcome-role-generic',
-      templateId: 'MultiSelectOptions',
-      props: {
-        bubbles: [
+    type: 'MultiSelectOptions',
+    bubbles: [
           { label: 'Leadership & Strategy' },
           { label: 'Marketing & Communications' },
           { label: 'Human Resources' },
@@ -20,7 +17,5 @@ export default function journeyWelcomeRoleGeneric() {
         showProgress: true,
         progressStep: 1,
         progressTotal: 3,
-      },
-    }],
   });
 }

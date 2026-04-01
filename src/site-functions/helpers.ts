@@ -1,25 +1,31 @@
 /**
- * Helper utilities for site functions
+ * Helper utilities for site functions - Mobeus 2.0 Format
  */
 
-export interface NavigatePayload {
-  badge: string;
-  title: string;
-  subtitle: string;
-  generativeSubsections: Array<{
-    id: string;
-    templateId: string;
-    props: Record<string, any>;
-  }>;
+export interface BubbleOption {
+  label: string;
+  value?: string;
+  variant?: 'default' | 'green';
+  showArrow?: boolean;
 }
 
 /**
- * Standard success response for site functions that return navigation data.
- * The agent should call navigateToSection with this payload.
+ * Standard response for site functions that return UI data.
+ * Returns structured data that Show LLM can render directly.
  */
-export function navigationResponse(payload: NavigatePayload) {
-  return { 
-    success: true, 
-    ...payload  // Return badge, title, subtitle, generativeSubsections directly
+export function uiResponse(data: {
+  badge: string;
+  title: string;
+  subtitle: string;
+  type: 'GlassmorphicOptions' | 'MultiSelectOptions' | 'TextInput' | 'RegistrationForm';
+  bubbles?: BubbleOption[];
+  placeholder?: string;
+  showProgress?: boolean;
+  progressStep?: number;
+  progressTotal?: number;
+}) {
+  return {
+    success: true,
+    ...data
   };
 }

@@ -1,15 +1,12 @@
-import { navigationResponse } from './helpers';
+import { uiResponse } from './helpers';
 
 export default function journeyWelcomePriority() {
-  return navigationResponse({
+  return uiResponse({
     badge: 'MOBEUS CAREER',
     title: 'Priorities',
     subtitle: 'Step 3 of 3',
-    generativeSubsections: [{
-      id: 'welcome-priority',
-      templateId: 'MultiSelectOptions',
-      props: {
-        bubbles: [
+    type: 'MultiSelectOptions',
+    bubbles: [
           { label: 'Searching and browsing listings' },
           { label: 'Experience and personality fit' },
           { label: 'Location' },
@@ -20,7 +17,5 @@ export default function journeyWelcomePriority() {
         showProgress: true,
         progressStep: 2,
         progressTotal: 3,
-      },
-    }],
   });
 }

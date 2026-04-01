@@ -1,26 +1,19 @@
-import { navigationResponse } from './helpers';
+import { uiResponse } from './helpers';
 
 /**
  * Journey-welcome-greeting — Welcome screen with initial options
  * Step ID: 3847-A | Tool ID: 2194-A
  */
 export default function journeyWelcomeGreeting() {
-  return navigationResponse({
+  return uiResponse({
     badge: 'MOBEUS CAREER',
     title: 'Welcome',
     subtitle: 'Getting started',
-    generativeSubsections: [
-      {
-        id: 'welcome-greeting',
-        templateId: 'GlassmorphicOptions',
-        props: {
-          bubbles: [
-            { label: "Yes, I'm ready" },
-            { label: "Not just yet" },
-            { label: "Tell me more" },
-          ],
-        },
-      },
+    type: 'GlassmorphicOptions',
+    bubbles: [
+      { label: "Yes, I'm ready" },
+      { label: "Not just yet" },
+      { label: "Tell me more" },
     ],
   });
 }

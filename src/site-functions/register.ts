@@ -6,7 +6,6 @@
  */
 
 import setTheme from './setTheme';
-import navigateToSection from './navigateToSection';
 import journeyWelcomeGreeting from './journeyWelcomeGreeting';
 import journeyWelcomeTellmore from './journeyWelcomeTellmore';
 import journeyWelcomeIndustry from './journeyWelcomeIndustry';
@@ -54,24 +53,6 @@ export const siteFunctionManifest: Record<string, SiteFunctionEntry> = {
       required: ['theme'],
     },
     defaults: { theme: 'system' },
-  },
-
-  navigateToSection: {
-    fn: navigateToSection,
-    description: 'Navigate to a UI section with badge, title, subtitle, and generativeSubsections',
-    schema: {
-      type: 'object',
-      properties: {
-        badge: { type: 'string', description: 'Badge text (e.g., "MOBEUS CAREER")' },
-        title: { type: 'string', description: 'Section title' },
-        subtitle: { type: 'string', description: 'Section subtitle' },
-        generativeSubsections: {
-          type: 'array',
-          description: 'Array of subsection objects with id, templateId, and props',
-        },
-      },
-      required: ['badge', 'title', 'subtitle', 'generativeSubsections'],
-    },
   },
 
   // Welcome Journey Tools

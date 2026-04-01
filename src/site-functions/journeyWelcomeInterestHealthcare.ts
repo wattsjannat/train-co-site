@@ -1,15 +1,12 @@
-import { navigationResponse } from './helpers';
+import { uiResponse } from './helpers';
 
 export default function journeyWelcomeInterestHealthcare() {
-  return navigationResponse({
+  return uiResponse({
     badge: 'MOBEUS CAREER',
     title: 'Role Exploration',
     subtitle: 'What interests you?',
-    generativeSubsections: [{
-      id: 'welcome-interest-healthcare',
-      templateId: 'MultiSelectOptions',
-      props: {
-        bubbles: [
+    type: 'MultiSelectOptions',
+    bubbles: [
           { label: 'Caring for people directly' },
           { label: 'Analysing patient data' },
           { label: 'Managing healthcare operations' },
@@ -17,8 +14,6 @@ export default function journeyWelcomeInterestHealthcare() {
           { label: 'Leading medical teams' },
           { label: 'Something else' },
           { label: "I'm not sure" },
-        ],
-      },
-    }],
+        ]
   });
 }

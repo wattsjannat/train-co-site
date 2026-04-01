@@ -1,16 +1,11 @@
-import { navigationResponse } from './helpers';
+import { uiResponse } from './helpers';
 
 export default function journeyWelcomeRoleCustomInput() {
-  return navigationResponse({
+  return uiResponse({
     badge: 'MOBEUS CAREER',
     title: 'Qualification',
     subtitle: 'Step 2 of 3',
-    generativeSubsections: [{
-      id: 'welcome-role-custom-input',
-      templateId: 'TextInput',
-      props: {
-        placeholder: 'Type role',
-      },
-    }],
+    type: 'TextInput',
+    placeholder: 'Type role',
   });
 }

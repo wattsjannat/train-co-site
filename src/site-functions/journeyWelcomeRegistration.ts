@@ -1,14 +1,10 @@
-import { navigationResponse } from './helpers';
+import { uiResponse } from './helpers';
 
 export default function journeyWelcomeRegistration() {
-  return navigationResponse({
+  return uiResponse({
     badge: 'MOBEUS CAREER',
     title: 'Registration',
     subtitle: 'Create your account',
-    generativeSubsections: [{
-      id: 'welcome-registration',
-      templateId: 'RegistrationForm',
-      props: {},
-    }],
+    type: 'RegistrationForm',
   });
 }

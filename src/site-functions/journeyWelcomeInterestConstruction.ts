@@ -1,15 +1,12 @@
-import { navigationResponse } from './helpers';
+import { uiResponse } from './helpers';
 
 export default function journeyWelcomeInterestConstruction() {
-  return navigationResponse({
+  return uiResponse({
     badge: 'MOBEUS CAREER',
     title: 'Role Exploration',
     subtitle: 'What interests you?',
-    generativeSubsections: [{
-      id: 'welcome-interest-construction',
-      templateId: 'MultiSelectOptions',
-      props: {
-        bubbles: [
+    type: 'MultiSelectOptions',
+    bubbles: [
           { label: 'Designing structures and spaces' },
           { label: 'Managing complex projects' },
           { label: 'Solving engineering challenges' },
@@ -17,8 +14,6 @@ export default function journeyWelcomeInterestConstruction() {
           { label: 'Working with innovative materials' },
           { label: 'Something else' },
           { label: "I'm not sure" },
-        ],
-      },
-    }],
+        ]
   });
 }

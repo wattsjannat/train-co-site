@@ -33,14 +33,13 @@ export default function RootLayout({
           rel="stylesheet"
         />
         
-        {/* CRITICAL: Register site functions FIRST before anything else */}
+        {/* Initialize site functions object early */}
         <Script
           id="site-functions-init"
           strategy="beforeInteractive"
           dangerouslySetInnerHTML={{__html: `
-            console.log('[CRITICAL] Initializing window.__siteFunctions BEFORE everything');
             window.__siteFunctions = {};
-            console.log('[CRITICAL] window.__siteFunctions initialized:', window.__siteFunctions);
+            console.log('[Site Functions] Initialized early');
           `}}
         />
         
@@ -79,56 +78,7 @@ export default function RootLayout({
             window.MOBEUS_AVATAR_ID = '92329d89e4434e63b6260f9f374fffb0';
             window.MOBEUS_VOICE_ID = '8a4dfef7aacf4ad88c10ae9391bd3098';
             
-            // Initialize site functions object IMMEDIATELY (before SDK loads)
-            window.__siteFunctions = window.__siteFunctions || {};
-            
-            console.log('[Early Init] Registering navigateToSection proxy BEFORE SDK loads');
-            
-            // Register navigateToSection proxy IMMEDIATELY
-            window.__siteFunctions.navigateToSection = function(args) {
-              console.log('[navigateToSection proxy] ✅ PROXY CALLED with args:', args);
-              console.log('[navigateToSection proxy] window.__siteFunctions exists:', !!window.__siteFunctions);
-              console.log('[navigateToSection proxy] Available functions:', Object.keys(window.__siteFunctions || {}));
-              
-              const { badge, title, subtitle, generativeSubsections } = args;
-              const nav = window.UIFrameworkSiteFunctions?.navigateToSection;
-              
-              if (typeof nav === 'function') {
-                console.log('[navigateToSection proxy] Calling real SDK function');
-                const result = nav(badge, title, subtitle, generativeSubsections);
-                return { success: true, result };
-              } else {
-                console.warn('[navigateToSection proxy] UIFrameworkSiteFunctions.navigateToSection not ready - queueing');
-                
-                // Queue and retry
-                let attempts = 0;
-                const checkInterval = setInterval(function() {
-                  attempts++;
-                  const navNow = window.UIFrameworkSiteFunctions?.navigateToSection;
-                  
-                  if (typeof navNow === 'function') {
-                    console.log('[navigateToSection proxy] React ready - executing queued call');
-                    clearInterval(checkInterval);
-                    navNow(badge, title, subtitle, generativeSubsections);
-                  } else if (attempts >= 50) {
-                    console.error('[navigateToSection proxy] Timeout waiting for React');
-                    clearInterval(checkInterval);
-                  }
-                }, 100);
-                
-                return { success: true, queued: true };
-              }
-            };
-            
-            console.log('[Early Init] navigateToSection proxy registered on window.__siteFunctions');
-            console.log('[Early Init] window.__siteFunctions =', Object.keys(window.__siteFunctions));
-            console.log('[Early Init] typeof window.__siteFunctions.navigateToSection =', typeof window.__siteFunctions.navigateToSection);
-            console.log('[Early Init] window.__siteFunctions.navigateToSection =', window.__siteFunctions.navigateToSection);
-            
-            // Make absolutely sure it's accessible
-            window.__siteFunctions['navigateToSection'] = window.__siteFunctions.navigateToSection;
-            
-            console.log('[UIFramework] Pre-init config with API key, avatar/voice IDs, and navigateToSection proxy');
+            console.log('[UIFramework] Pre-init config with API key and avatar/voice IDs');
           `}}
         />
         
