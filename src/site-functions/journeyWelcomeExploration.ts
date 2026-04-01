@@ -5,12 +5,24 @@
 export default function journeyWelcomeExploration() {
   return {
     success: true,
-    stepId: '5921-C',
-    toolId: '7483-C',
-    componentType: 'MultiSelectOptions',
-    options: 'Solving a puzzle or problem|Creating something from scratch|Helping someone through a tough moment|Organising chaos into order|Learning something completely new|Leading a group',
     badge: 'MOBEUS CAREER',
     title: 'Exploration',
     subtitle: 'Tell us what you enjoy',
+    generativeSubsections: [
+      {
+        id: 'welcome-exploration',
+        templateId: 'MultiSelectOptions',
+        props: {
+          bubbles: [
+            { label: 'Solving a puzzle or problem' },
+            { label: 'Creating something from scratch' },
+            { label: 'Helping someone through a tough moment' },
+            { label: 'Organising chaos into order' },
+            { label: 'Learning something completely new' },
+            { label: 'Leading a group' },
+          ],
+        },
+      },
+    ],
   };
 }

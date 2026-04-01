@@ -5,13 +5,27 @@
 export default function journeyWelcomeIndustry() {
   return {
     success: true,
-    stepId: '5921-A',
-    toolId: '7483-A',
-    componentType: 'MultiSelectOptions',
-    options: "Technology|Finance|Healthcare|Construction|Something else|I'm not sure",
     badge: 'MOBEUS CAREER',
     title: 'Qualification',
     subtitle: 'Step 1 of 3',
-    progress: { progressStep: 0, progressTotal: 3 },
+    generativeSubsections: [
+      {
+        id: 'welcome-industry',
+        templateId: 'MultiSelectOptions',
+        props: {
+          bubbles: [
+            { label: 'Technology' },
+            { label: 'Finance' },
+            { label: 'Healthcare' },
+            { label: 'Construction' },
+            { label: 'Something else' },
+            { label: "I'm not sure" },
+          ],
+          showProgress: true,
+          progressStep: 0,
+          progressTotal: 3,
+        },
+      },
+    ],
   };
 }

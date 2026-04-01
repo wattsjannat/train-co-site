@@ -5,12 +5,25 @@
 export default function journeyWelcomeInterestTechnology() {
   return {
     success: true,
-    stepId: '6138-H',
-    toolId: '4521-H',
-    componentType: 'MultiSelectOptions',
-    options: "Solving complex logic puzzles|Finding patterns in data|Leading teams to launch products|Designing easy to use interfaces|Leading teams towards a goal|Something else|I'm not sure",
     badge: 'MOBEUS CAREER',
     title: 'Role Exploration',
     subtitle: 'What interests you?',
+    generativeSubsections: [
+      {
+        id: 'welcome-interest-technology',
+        templateId: 'MultiSelectOptions',
+        props: {
+          bubbles: [
+            { label: 'Solving complex logic puzzles' },
+            { label: 'Finding patterns in data' },
+            { label: 'Leading teams to launch products' },
+            { label: 'Designing easy to use interfaces' },
+            { label: 'Leading teams towards a goal' },
+            { label: 'Something else' },
+            { label: "I'm not sure" },
+          ],
+        },
+      },
+    ],
   };
 }

@@ -5,13 +5,27 @@
 export default function journeyWelcomePriority() {
   return {
     success: true,
-    stepId: '8294-A',
-    toolId: '1657-A',
-    componentType: 'MultiSelectOptions',
-    options: 'Searching and browsing listings|Experience and personality fit|Location|Know which skills are required|Take courses and earn certifications|Something else',
     badge: 'MOBEUS CAREER',
     title: 'Priorities',
     subtitle: 'Step 3 of 3',
-    progress: { progressStep: 2, progressTotal: 3 },
+    generativeSubsections: [
+      {
+        id: 'welcome-priority',
+        templateId: 'MultiSelectOptions',
+        props: {
+          bubbles: [
+            { label: 'Searching and browsing listings' },
+            { label: 'Experience and personality fit' },
+            { label: 'Location' },
+            { label: 'Know which skills are required' },
+            { label: 'Take courses and earn certifications' },
+            { label: 'Something else' },
+          ],
+          showProgress: true,
+          progressStep: 2,
+          progressTotal: 3,
+        },
+      },
+    ],
   };
 }

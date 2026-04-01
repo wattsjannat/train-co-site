@@ -5,11 +5,15 @@
 export default function journeyWelcomeRegistration() {
   return {
     success: true,
-    stepId: '2916-A',
-    toolId: '9183-A',
-    componentType: 'RegistrationForm',
     badge: 'MOBEUS CAREER',
     title: 'Registration',
     subtitle: 'Create your account',
+    generativeSubsections: [
+      {
+        id: 'welcome-registration',
+        templateId: 'RegistrationForm',
+        props: {},
+      },
+    ],
   };
 }

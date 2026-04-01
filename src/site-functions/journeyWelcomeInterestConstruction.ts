@@ -5,12 +5,25 @@
 export default function journeyWelcomeInterestConstruction() {
   return {
     success: true,
-    stepId: '6138-K',
-    toolId: '4521-K',
-    componentType: 'MultiSelectOptions',
-    options: "Designing structures and spaces|Managing complex projects|Solving engineering challenges|Coordinating large teams|Working with innovative materials|Something else|I'm not sure",
     badge: 'MOBEUS CAREER',
     title: 'Role Exploration',
     subtitle: 'What interests you?',
+    generativeSubsections: [
+      {
+        id: 'welcome-interest-construction',
+        templateId: 'MultiSelectOptions',
+        props: {
+          bubbles: [
+            { label: 'Designing structures and spaces' },
+            { label: 'Managing complex projects' },
+            { label: 'Solving engineering challenges' },
+            { label: 'Coordinating large teams' },
+            { label: 'Working with innovative materials' },
+            { label: 'Something else' },
+            { label: "I'm not sure" },
+          ],
+        },
+      },
+    ],
   };
 }

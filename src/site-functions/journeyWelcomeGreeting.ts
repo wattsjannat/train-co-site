@@ -5,12 +5,21 @@
 export default function journeyWelcomeGreeting() {
   return {
     success: true,
-    stepId: '3847-A',
-    toolId: '2194-A',
-    componentType: 'GlassmorphicOptions',
-    options: "Yes, I'm ready|Not just yet|Tell me more",
     badge: 'MOBEUS CAREER',
     title: 'Welcome',
     subtitle: 'Getting started',
+    generativeSubsections: [
+      {
+        id: 'welcome-greeting',
+        templateId: 'GlassmorphicOptions',
+        props: {
+          bubbles: [
+            { label: "Yes, I'm ready" },
+            { label: "Not just yet" },
+            { label: "Tell me more" },
+          ],
+        },
+      },
+    ],
   };
 }

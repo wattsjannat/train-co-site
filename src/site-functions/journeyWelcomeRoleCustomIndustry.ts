@@ -45,18 +45,27 @@ export default function journeyWelcomeRoleCustomIndustry(args: { customIndustry:
   }
 
   const generatedRoles = generateRolesForIndustry(customIndustry);
-  const options = [...generatedRoles, 'Something else', "I'm not sure"].join('|');
 
   return {
     success: true,
-    stepId: '6138-E',
-    toolId: '4521-E',
-    componentType: 'MultiSelectOptions',
-    options,
     badge: 'MOBEUS CAREER',
     title: 'Qualification',
     subtitle: 'Step 2 of 3',
-    progress: { progressStep: 1, progressTotal: 3 },
-    customIndustry,
+    generativeSubsections: [
+      {
+        id: 'welcome-role-custom-industry',
+        templateId: 'MultiSelectOptions',
+        props: {
+          bubbles: [
+            ...generatedRoles.map(role => ({ label: role })),
+            { label: 'Something else' },
+            { label: "I'm not sure" },
+          ],
+          showProgress: true,
+          progressStep: 1,
+          progressTotal: 3,
+        },
+      },
+    ],
   };
 }

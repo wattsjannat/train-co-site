@@ -5,12 +5,25 @@
 export default function journeyWelcomeInterestHealthcare() {
   return {
     success: true,
-    stepId: '6138-J',
-    toolId: '4521-J',
-    componentType: 'MultiSelectOptions',
-    options: "Caring for people directly|Analysing patient data|Managing healthcare operations|Developing new treatments|Leading medical teams|Something else|I'm not sure",
     badge: 'MOBEUS CAREER',
     title: 'Role Exploration',
     subtitle: 'What interests you?',
+    generativeSubsections: [
+      {
+        id: 'welcome-interest-healthcare',
+        templateId: 'MultiSelectOptions',
+        props: {
+          bubbles: [
+            { label: 'Caring for people directly' },
+            { label: 'Analysing patient data' },
+            { label: 'Managing healthcare operations' },
+            { label: 'Developing new treatments' },
+            { label: 'Leading medical teams' },
+            { label: 'Something else' },
+            { label: "I'm not sure" },
+          ],
+        },
+      },
+    ],
   };
 }

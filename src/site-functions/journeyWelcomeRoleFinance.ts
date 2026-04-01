@@ -5,13 +5,27 @@
 export default function journeyWelcomeRoleFinance() {
   return {
     success: true,
-    stepId: '6138-B',
-    toolId: '4521-B',
-    componentType: 'MultiSelectOptions',
-    options: "Investment & Banking|Accounting & Audit|Risk & Compliance|Financial Planning|Something else|I'm not sure",
     badge: 'MOBEUS CAREER',
     title: 'Qualification',
     subtitle: 'Step 2 of 3',
-    progress: { progressStep: 1, progressTotal: 3 },
+    generativeSubsections: [
+      {
+        id: 'welcome-role-finance',
+        templateId: 'MultiSelectOptions',
+        props: {
+          bubbles: [
+            { label: 'Investment & Banking' },
+            { label: 'Accounting & Audit' },
+            { label: 'Risk & Compliance' },
+            { label: 'Financial Planning' },
+            { label: 'Something else' },
+            { label: "I'm not sure" },
+          ],
+          showProgress: true,
+          progressStep: 1,
+          progressTotal: 3,
+        },
+      },
+    ],
   };
 }

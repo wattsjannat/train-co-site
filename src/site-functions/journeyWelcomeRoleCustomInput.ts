@@ -5,12 +5,17 @@
 export default function journeyWelcomeRoleCustomInput() {
   return {
     success: true,
-    stepId: '6138-G',
-    toolId: '4521-G',
-    componentType: 'TextInput',
-    placeholder: 'Type role',
     badge: 'MOBEUS CAREER',
     title: 'Qualification',
     subtitle: 'Step 2 of 3',
+    generativeSubsections: [
+      {
+        id: 'welcome-role-custom-input',
+        templateId: 'TextInput',
+        props: {
+          placeholder: 'Type role',
+        },
+      },
+    ],
   };
 }

@@ -5,12 +5,17 @@
 export default function journeyWelcomeIndustryCustom() {
   return {
     success: true,
-    stepId: '5921-B',
-    toolId: '7483-B',
-    componentType: 'TextInput',
-    placeholder: 'Type industry',
     badge: 'MOBEUS CAREER',
     title: 'Qualification',
     subtitle: 'Step 1 of 3',
+    generativeSubsections: [
+      {
+        id: 'welcome-industry-custom',
+        templateId: 'TextInput',
+        props: {
+          placeholder: 'Type industry',
+        },
+      },
+    ],
   };
 }

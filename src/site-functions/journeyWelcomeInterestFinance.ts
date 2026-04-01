@@ -5,12 +5,25 @@
 export default function journeyWelcomeInterestFinance() {
   return {
     success: true,
-    stepId: '6138-I',
-    toolId: '4521-I',
-    componentType: 'MultiSelectOptions',
-    options: "Managing and analysing data|Identifying risks and mitigations|Building client relationships|Strategising investments|Leading financial teams|Something else|I'm not sure",
     badge: 'MOBEUS CAREER',
     title: 'Role Exploration',
     subtitle: 'What interests you?',
+    generativeSubsections: [
+      {
+        id: 'welcome-interest-finance',
+        templateId: 'MultiSelectOptions',
+        props: {
+          bubbles: [
+            { label: 'Managing and analysing data' },
+            { label: 'Identifying risks and mitigations' },
+            { label: 'Building client relationships' },
+            { label: 'Strategising investments' },
+            { label: 'Leading financial teams' },
+            { label: 'Something else' },
+            { label: "I'm not sure" },
+          ],
+        },
+      },
+    ],
   };
 }
