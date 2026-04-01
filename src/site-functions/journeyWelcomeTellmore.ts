@@ -1,10 +1,11 @@
+import { navigationResponse } from './helpers';
+
 /**
  * Journey-welcome-tellmore — Tell me more about TrAIn
  * Step ID: 3847-B | Tool ID: 2194-B
  */
 export default function journeyWelcomeTellmore() {
-  return {
-    success: true,
+  return navigationResponse({
     badge: 'MOBEUS CAREER',
     title: 'Welcome',
     subtitle: 'About TrAIn',
@@ -24,5 +25,5 @@ export default function journeyWelcomeTellmore() {
         },
       },
     ],
-  };
+  });
 }

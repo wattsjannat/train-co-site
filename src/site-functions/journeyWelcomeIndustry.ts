@@ -1,10 +1,11 @@
+import { navigationResponse } from './helpers';
+
 /**
  * Journey-welcome-industry — Industry selection
  * Step ID: 5921-A | Tool ID: 7483-A
  */
 export default function journeyWelcomeIndustry() {
-  return {
-    success: true,
+  return navigationResponse({
     badge: 'MOBEUS CAREER',
     title: 'Qualification',
     subtitle: 'Step 1 of 3',
@@ -27,5 +28,5 @@ export default function journeyWelcomeIndustry() {
         },
       },
     ],
-  };
+  });
 }

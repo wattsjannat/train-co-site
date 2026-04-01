@@ -1,3 +1,5 @@
+import { navigationResponse } from './helpers';
+
 /**
  * Journey-welcome-role-custom-industry — Dynamic roles for custom industry
  * Step ID: 6138-E | Tool ID: 4521-E
@@ -46,26 +48,23 @@ export default function journeyWelcomeRoleCustomIndustry(args: { customIndustry:
 
   const generatedRoles = generateRolesForIndustry(customIndustry);
 
-  return {
-    success: true,
+  return navigationResponse({
     badge: 'MOBEUS CAREER',
     title: 'Qualification',
     subtitle: 'Step 2 of 3',
-    generativeSubsections: [
-      {
-        id: 'welcome-role-custom-industry',
-        templateId: 'MultiSelectOptions',
-        props: {
-          bubbles: [
-            ...generatedRoles.map(role => ({ label: role })),
-            { label: 'Something else' },
-            { label: "I'm not sure" },
-          ],
-          showProgress: true,
-          progressStep: 1,
-          progressTotal: 3,
-        },
+    generativeSubsections: [{
+      id: 'welcome-role-custom-industry',
+      templateId: 'MultiSelectOptions',
+      props: {
+        bubbles: [
+          ...generatedRoles.map(role => ({ label: role })),
+          { label: 'Something else' },
+          { label: "I'm not sure" },
+        ],
+        showProgress: true,
+        progressStep: 1,
+        progressTotal: 3,
       },
-    ],
-  };
+    }],
+  });
 }

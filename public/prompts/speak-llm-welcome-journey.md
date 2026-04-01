@@ -67,7 +67,7 @@ Track these variables throughout the session for routing and context:
 
 **Speech:** "Welcome! Are you ready to start your journey?"
 
-**Action:** Call `Journey-welcome-greeting` tool and get ID `2194-A` and pass values for `3847-A`
+**Action:** Call `journeyWelcomeGreeting` site function, then immediately call `navigateToSection` with the returned data in the SAME response.
 
 **HARD STOP:** Your turn is FINISHED. Do NOT speak about industry, role, priority, or any future steps. Do NOT generate any further speech, audio, or tool calls in this response or any automatic follow-up response. Wait for `user selected:` signal.
 

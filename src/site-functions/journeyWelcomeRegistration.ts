@@ -1,19 +1,14 @@
-/**
- * Journey-welcome-registration — Registration form
- * Step ID: 2916-A | Tool ID: 9183-A
- */
+import { navigationResponse } from './helpers';
+
 export default function journeyWelcomeRegistration() {
-  return {
-    success: true,
+  return navigationResponse({
     badge: 'MOBEUS CAREER',
     title: 'Registration',
     subtitle: 'Create your account',
-    generativeSubsections: [
-      {
-        id: 'welcome-registration',
-        templateId: 'RegistrationForm',
-        props: {},
-      },
-    ],
-  };
+    generativeSubsections: [{
+      id: 'welcome-registration',
+      templateId: 'RegistrationForm',
+      props: {},
+    }],
+  });
 }

@@ -1,10 +1,11 @@
+import { navigationResponse } from './helpers';
+
 /**
  * Journey-welcome-exploration — Exploration path for unsure users
  * Step ID: 5921-C | Tool ID: 7483-C
  */
 export default function journeyWelcomeExploration() {
-  return {
-    success: true,
+  return navigationResponse({
     badge: 'MOBEUS CAREER',
     title: 'Exploration',
     subtitle: 'Tell us what you enjoy',
@@ -24,5 +25,5 @@ export default function journeyWelcomeExploration() {
         },
       },
     ],
-  };
+  });
 }
