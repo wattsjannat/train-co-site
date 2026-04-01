@@ -68,8 +68,17 @@ export default function RootLayout({
             window.MOBEUS_AVATAR_ID = '92329d89e4434e63b6260f9f374fffb0';
             window.MOBEUS_VOICE_ID = '8a4dfef7aacf4ad88c10ae9391bd3098';
             
+            // Initialize site functions object IMMEDIATELY (before SDK loads)
+            window.__siteFunctions = {};
+            
             console.log('[UIFramework] Pre-init config with API key and forced avatar/voice IDs');
           `}}
+        />
+        
+        {/* Early Site Functions Registration - MUST load before SDK */}
+        <Script
+          src="/register-site-functions.js"
+          strategy="beforeInteractive"
         />
         
         {/* UIFramework SDK - Agent Template System */}
