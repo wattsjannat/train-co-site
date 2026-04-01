@@ -8,7 +8,7 @@ WORKDIR /app
 
 # Copy package files
 COPY package*.json ./
-RUN npm ci
+RUN npm install --production=false
 
 # Rebuild the source code only when needed
 FROM base AS builder
@@ -16,9 +16,17 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
+# Accept build arguments for Next.js public environment variables
+ARG NEXT_PUBLIC_WIDGET_API_KEY
+ARG NEXT_PUBLIC_WIDGET_HOST=https://app.mobeus.ai
+ARG NEXT_PUBLIC_AGENT_NAME="Train Co"
+
 # Set environment variables for build
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
+ENV NEXT_PUBLIC_WIDGET_API_KEY=$NEXT_PUBLIC_WIDGET_API_KEY
+ENV NEXT_PUBLIC_WIDGET_HOST=$NEXT_PUBLIC_WIDGET_HOST
+ENV NEXT_PUBLIC_AGENT_NAME=$NEXT_PUBLIC_AGENT_NAME
 
 # Build the application
 RUN npm run build
@@ -36,7 +44,7 @@ RUN adduser --system --uid 1001 nextjs
 
 # Copy necessary files
 COPY --from=builder /app/public ./public
-COPY --from=builder /app/.next ./.next
+COPY --from=builder /app/out ./out
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/server.js ./server.js

@@ -1,0 +1,36 @@
+# Deploy Train Co Site frontend to ECS
+
+name: Deploy
+
+on:
+  workflow_dispatch:
+
+env:
+  AWS_REGION: "eu-west-1"
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+jobs:
+  deploy-frontend:
+    name: Deploy Train Co Site
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Configure AWS
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+      
+      - name: Deploy Train Co Site to ECS
+        run: |
+          cluster="${ECS_CLUSTER_NAME:-trainco-dev}"
+          echo "Deploying train-co-site to cluster: $cluster"
+          aws ecs update-service --cluster "$cluster" --service "${cluster}-main-app" \
+            --force-new-deployment --region ${{ env.AWS_REGION }} --no-cli-pager
+          echo "✅ Deployment triggered successfully"
+        env:
+          ECS_CLUSTER_NAME: ${{ secrets.ECS_CLUSTER_NAME }}

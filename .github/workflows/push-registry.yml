@@ -1,0 +1,48 @@
+# Build and push Train Co Site Docker image to ECR
+
+name: Push to Registry
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+env:
+  AWS_REGION: "eu-west-1"
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+jobs:
+  push:
+    name: Build and push frontend image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Configure AWS
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+      
+      - name: Login to ECR
+        run: |
+          REGISTRY=$(echo "${{ secrets.ECR_TRAIN_CO_SITE_URL }}" | cut -d/ -f1)
+          aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin "$REGISTRY"
+      
+      - uses: docker/setup-buildx-action@v3
+      
+      - name: Build and push train-co-site image
+        run: |
+          TAG="sha-${GITHUB_SHA::7}"
+          echo "Building and pushing train-co-site..."
+          docker buildx build --platform linux/amd64 --provenance=false --sbom=false \
+            -t "${{ secrets.ECR_TRAIN_CO_SITE_URL }}:${TAG}" \
+            -t "${{ secrets.ECR_TRAIN_CO_SITE_URL }}:latest" \
+            -f Dockerfile . --push
+          echo "✅ Successfully pushed train-co-site:${TAG} and train-co-site:latest"

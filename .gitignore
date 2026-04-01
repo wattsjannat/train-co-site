@@ -1,8 +1,34 @@
+# Dependencies
 node_modules
+
+# Next.js
 .next
 out
-.env*
-!.env.example
 *.tsbuildinfo
 next-env.d.ts
+
+# Environment variables
+.env*
+!.env.example
+!.env.production.example
+
+# Documentation (not needed in git)
+docs/
+*.md
+!README.md
+
+# Terraform (managed in trainco-v1 repo)
+terraform/
+
+# OS
 .DS_Store
+*.swp
+*.swo
+
+# IDE
+.vscode
+.idea
+
+# Logs
+*.log
+npm-debug.log*

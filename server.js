@@ -1,53 +1,28 @@
-const { createServer } = require('http');
-const { parse } = require('url');
-const next = require('next');
+const express = require('express');
+const path = require('path');
 
-const dev = process.env.NODE_ENV !== 'production';
-const hostname = 'localhost';
+const app = express();
 const port = process.env.PORT || 3000;
+const hostname = process.env.HOSTNAME || '0.0.0.0';
 
-// Patch os.networkInterfaces to prevent the error
-const os = require('os');
-const originalNetworkInterfaces = os.networkInterfaces;
-os.networkInterfaces = function() {
-  try {
-    return originalNetworkInterfaces();
-  } catch (error) {
-    console.warn('[Server] os.networkInterfaces() failed, returning localhost only');
-    return {
-      lo0: [
-        {
-          address: '127.0.0.1',
-          netmask: '255.0.0.0',
-          family: 'IPv4',
-          mac: '00:00:00:00:00:00',
-          internal: true,
-          cidr: '127.0.0.1/8'
-        }
-      ]
-    };
-  }
-};
+// Serve static files from /v2 path
+app.use('/v2', express.static(path.join(__dirname, 'out')));
 
-const app = next({ dev, hostname, port });
-const handle = app.getRequestHandler();
+// Health check at /v2/ (for ALB health checks)
+app.get('/v2/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'out', 'index.html'));
+});
 
-app.prepare().then(() => {
-  createServer(async (req, res) => {
-    try {
-      const parsedUrl = parse(req.url, true);
-      await handle(req, res, parsedUrl);
-    } catch (err) {
-      console.error('Error occurred handling', req.url, err);
-      res.statusCode = 500;
-      res.end('internal server error');
-    }
-  })
-    .once('error', (err) => {
-      console.error(err);
-      process.exit(1);
-    })
-    .listen(port, () => {
-      console.log(`> Ready on http://${hostname}:${port}`);
-    });
+// Handle all /v2/* routes - serve index.html for client-side routing
+app.get('/v2/*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'out', 'index.html'));
+});
+
+// Root health check (optional, for debugging)
+app.get('/', (req, res) => {
+  res.json({ status: 'ok', message: 'Train Co Site v2 - Access at /v2' });
+});
+
+app.listen(port, hostname, () => {
+  console.log(`> Train Co Site ready on http://${hostname}:${port}/v2`);
 });
