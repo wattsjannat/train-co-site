@@ -9,6 +9,7 @@ import { EntryPoint } from "@/components/EntryPoint";
 import { ConnectingScreen } from "@/components/ConnectingScreen";
 import { connectTele, syncTeleState } from "@/lib/teleConnect";
 import { teleState } from "@/lib/teleState";
+import { registerSiteFunctions } from "@/site-functions/register";
 
 type Journey = "landing" | "connecting" | "talent";
 
@@ -41,6 +42,11 @@ export default function App() {
   const [journey, setJourney] = useState<Journey>("landing");
   // Independent of journey — stays alive over TalentApp until video stream is ready
   const [showConnecting, setShowConnecting] = useState(false);
+
+  // Register site functions on mount
+  useEffect(() => {
+    registerSiteFunctions();
+  }, []);
 
   // Return to landing when BottomNav disconnects
   useEffect(() => {
