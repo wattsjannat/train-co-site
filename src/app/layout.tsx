@@ -61,7 +61,7 @@ export default function RootLayout({
               }
             };
             
-            console.log('[Site Functions] Initialized with navigateToSection bridge');
+            console.log('[Site Functions v2.0] Initialized with navigateToSection bridge');
           `}}
         />
         
