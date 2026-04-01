@@ -6,6 +6,7 @@
  */
 
 import setTheme from './setTheme';
+import navigateToSection from './navigateToSection';
 import journeyWelcomeGreeting from './journeyWelcomeGreeting';
 import journeyWelcomeTellmore from './journeyWelcomeTellmore';
 import journeyWelcomeIndustry from './journeyWelcomeIndustry';
@@ -53,6 +54,20 @@ export const siteFunctionManifest: Record<string, SiteFunctionEntry> = {
       required: ['theme'],
     },
     defaults: { theme: 'system' },
+  },
+
+  navigateToSection: {
+    fn: navigateToSection,
+    description: 'Bridge function for Mobeus internal navigateToSection calls',
+    schema: {
+      type: 'object',
+      properties: {
+        badge: { type: 'string' },
+        title: { type: 'string' },
+        subtitle: { type: 'string' },
+        generativeSubsections: { type: 'array' },
+      },
+    },
   },
 
   // Welcome Journey Tools
