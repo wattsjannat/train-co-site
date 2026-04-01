@@ -43,11 +43,12 @@ export default function RootLayout({
           `}}
         />
         
-        {/* UIFramework Pre-Configuration with Agent API Key */}
+        {/* Mobeus 2.0 SDK Pre-Configuration */}
         <Script
-          id="uiframework-preconfig"
+          id="mobeus-preconfig"
           strategy="beforeInteractive"
           dangerouslySetInnerHTML={{__html: `
+            // Mobeus 2.0 Configuration
             window.UIFRAMEWORK_AUTO_INIT = false;
             window.UIFrameworkPreInitConfig = {
               widgetApiKey: "${process.env.NEXT_PUBLIC_WIDGET_API_KEY || ''}",
@@ -70,7 +71,7 @@ export default function RootLayout({
               },
             };
             
-            // Also set as global for UIFramework to pick up
+            // Global API key configuration for Mobeus 2.0
             window.MOBEUS_WIDGET_API_KEY = "${process.env.NEXT_PUBLIC_WIDGET_API_KEY || ''}";
             window.AGENT_API_KEY = "${process.env.NEXT_PUBLIC_WIDGET_API_KEY || ''}";
             
@@ -78,11 +79,11 @@ export default function RootLayout({
             window.MOBEUS_AVATAR_ID = '92329d89e4434e63b6260f9f374fffb0';
             window.MOBEUS_VOICE_ID = '8a4dfef7aacf4ad88c10ae9391bd3098';
             
-            console.log('[UIFramework] Pre-init config with API key and avatar/voice IDs');
+            console.log('[Mobeus 2.0] Pre-init config with API key and avatar/voice IDs');
           `}}
         />
         
-        {/* UIFramework SDK - Agent Template System */}
+        {/* Mobeus 2.0 SDK (Tele Live Avatar) */}
         <Script
           src="https://telecdn.s3.us-east-2.amazonaws.com/js/ui-framework-liveavatar.js"
           strategy="afterInteractive"

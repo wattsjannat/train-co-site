@@ -11,7 +11,9 @@
     <meta name="description" content="AI-powered career matching. Talk to Farah, your personal career coach, and discover roles that fit you perfectly." />
     <meta name="theme-color" content="#09090b" />
 
+    <!-- Mobeus 2.0 SDK Configuration -->
     <script>
+      // Mobeus 2.0 Platform Configuration
       window.UIFRAMEWORK_AUTO_INIT = false;
       window.UIFrameworkPreInitConfig = {
         widgetApiKey: import.meta.env.NEXT_PUBLIC_WIDGET_API_KEY || '',
@@ -33,21 +35,23 @@
         },
       };
       
+      // Global Mobeus 2.0 API Keys
       window.MOBEUS_WIDGET_API_KEY = import.meta.env.NEXT_PUBLIC_WIDGET_API_KEY || '';
       window.AGENT_API_KEY = import.meta.env.NEXT_PUBLIC_WIDGET_API_KEY || '';
       window.MOBEUS_AVATAR_ID = '92329d89e4434e63b6260f9f374fffb0';
       window.MOBEUS_VOICE_ID = '8a4dfef7aacf4ad88c10ae9391bd3098';
       
-      console.log('[UIFramework] Pre-init config with API key (Mobeus 2.0)');
+      console.log('[Mobeus 2.0] Pre-init config with API key');
     </script>
 
+    <!-- Mobeus 2.0 Internal Functions Bridge -->
     <script>
-      (function registerUIFrameworkSiteFunctions() {
+      (function registerMobeusSiteFunctions() {
+        // Internal Mobeus SDK functions bridge
         // navigateToSection is patched at runtime by usePhaseFlow (React).
-        // This placeholder handles any calls that arrive before React mounts.
         const navigationBridge = {
           navigateToSection(data) {
-            console.warn("[UIFramework] navigateToSection called before React initialized:", data);
+            console.warn("[Mobeus 2.0] navigateToSection called before React initialized:", data);
             return false;
           },
         };
@@ -64,8 +68,6 @@
         };
 
         // MCP data bridge — placeholders patched at runtime by React
-        // (src/lib/mcpBridge.ts via usePhaseFlow). These stubs handle any
-        // calls that arrive before React mounts.
         const mcpBridge = {
           fetchJobs() { console.warn("[mcpBridge] fetchJobs called before React initialized"); return undefined; },
           fetchSkills() { console.warn("[mcpBridge] fetchSkills called before React initialized"); return undefined; },
@@ -95,10 +97,7 @@
       })();
     </script>
 
-    <!-- Intercept getUserMedia BEFORE the SDK loads so any reference the SDK caches
-         internally is already our wrapped version. When __employerMode is true we
-         return a silent synthetic AudioContext stream so the browser never opens the
-         real microphone (and the mic indicator never appears). -->
+    <!-- Employer Mode: Silent Microphone (for demo/testing) -->
     <script>
       (function () {
         window.__employerMode = false;
@@ -118,6 +117,7 @@
       })();
     </script>
 
+    <!-- Mobeus 2.0 SDK (Tele Live Avatar) -->
     <script type="module" src="https://telecdn.s3.us-east-2.amazonaws.com/js/ui-framework-liveavatar.js"></script>
   </head>
   <body>
