@@ -71,14 +71,42 @@ export default function RootLayout({
             // Initialize site functions object IMMEDIATELY (before SDK loads)
             window.__siteFunctions = {};
             
-            console.log('[UIFramework] Pre-init config with API key and forced avatar/voice IDs');
+            // Register navigateToSection proxy IMMEDIATELY
+            window.__siteFunctions.navigateToSection = function(args) {
+              console.log('[navigateToSection proxy] Called with args:', args);
+              
+              const { badge, title, subtitle, generativeSubsections } = args;
+              const nav = window.UIFrameworkSiteFunctions?.navigateToSection;
+              
+              if (typeof nav === 'function') {
+                console.log('[navigateToSection proxy] Calling real SDK function');
+                const result = nav(badge, title, subtitle, generativeSubsections);
+                return { success: true, result };
+              } else {
+                console.warn('[navigateToSection proxy] UIFrameworkSiteFunctions.navigateToSection not ready - queueing');
+                
+                // Queue and retry
+                let attempts = 0;
+                const checkInterval = setInterval(function() {
+                  attempts++;
+                  const navNow = window.UIFrameworkSiteFunctions?.navigateToSection;
+                  
+                  if (typeof navNow === 'function') {
+                    console.log('[navigateToSection proxy] React ready - executing queued call');
+                    clearInterval(checkInterval);
+                    navNow(badge, title, subtitle, generativeSubsections);
+                  } else if (attempts >= 50) {
+                    console.error('[navigateToSection proxy] Timeout waiting for React');
+                    clearInterval(checkInterval);
+                  }
+                }, 100);
+                
+                return { success: true, queued: true };
+              }
+            };
+            
+            console.log('[UIFramework] Pre-init config with API key, avatar/voice IDs, and navigateToSection proxy');
           `}}
-        />
-        
-        {/* Early Site Functions Registration - MUST load before SDK */}
-        <Script
-          src="/register-site-functions.js"
-          strategy="beforeInteractive"
         />
         
         {/* UIFramework SDK - Agent Template System */}
