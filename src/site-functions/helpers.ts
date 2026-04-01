@@ -1,31 +1,25 @@
 /**
  * Helper utilities for site functions - Mobeus 2.0 Format
+ * Returns pipe-delimited strings for Mobeus to parse
  */
 
-export interface BubbleOption {
-  label: string;
-  value?: string;
-  variant?: 'default' | 'green';
-  showArrow?: boolean;
+/**
+ * Standard response for site functions that return options as pipe-delimited strings.
+ * Mobeus 2.0 expects this format for the Show LLM to parse.
+ */
+export function optionsResponse(options: string[]) {
+  return {
+    success: true,
+    options: options.join('|')
+  };
 }
 
 /**
- * Standard response for site functions that return UI data.
- * Returns structured data that Show LLM can render directly.
+ * Response for text input fields
  */
-export function uiResponse(data: {
-  badge: string;
-  title: string;
-  subtitle: string;
-  type: 'GlassmorphicOptions' | 'MultiSelectOptions' | 'TextInput' | 'RegistrationForm';
-  bubbles?: BubbleOption[];
-  placeholder?: string;
-  showProgress?: boolean;
-  progressStep?: number;
-  progressTotal?: number;
-}) {
+export function textInputResponse(placeholder: string) {
   return {
     success: true,
-    ...data
+    placeholder
   };
 }

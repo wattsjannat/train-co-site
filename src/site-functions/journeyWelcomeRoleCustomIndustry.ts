@@ -1,4 +1,4 @@
-import { uiResponse } from './helpers';
+import { optionsResponse, textInputResponse } from './helpers';
 
 /**
  * Journey-welcome-role-custom-industry — Dynamic roles for custom industry
@@ -48,18 +48,8 @@ export default function journeyWelcomeRoleCustomIndustry(args: { customIndustry:
 
   const generatedRoles = generateRolesForIndustry(customIndustry);
 
-  return uiResponse({
-    badge: 'MOBEUS CAREER',
-    title: 'Qualification',
-    subtitle: 'Step 2 of 3',
-    type: 'MultiSelectOptions',
-    bubbles: [
-          ...generatedRoles.map(role => ({ label: role })),
-          { label: 'Something else' },
-          { label: "I'm not sure" },
-        ],
-        showProgress: true,
-        progressStep: 1,
-        progressTotal: 3,
-  });
+    return optionsResponse([
+    "Something else",
+    "I"
+  ]);
 }

@@ -1,19 +1,13 @@
-import { uiResponse } from './helpers';
+import { optionsResponse, textInputResponse } from './helpers';
 
 export default function journeyWelcomeInterestConstruction() {
-  return uiResponse({
-    badge: 'MOBEUS CAREER',
-    title: 'Role Exploration',
-    subtitle: 'What interests you?',
-    type: 'MultiSelectOptions',
-    bubbles: [
-          { label: 'Designing structures and spaces' },
-          { label: 'Managing complex projects' },
-          { label: 'Solving engineering challenges' },
-          { label: 'Coordinating large teams' },
-          { label: 'Working with innovative materials' },
-          { label: 'Something else' },
-          { label: "I'm not sure" },
-        ]
-  });
+    return optionsResponse([
+    "Designing structures and spaces",
+    "Managing complex projects",
+    "Solving engineering challenges",
+    "Coordinating large teams",
+    "Working with innovative materials",
+    "Something else",
+    "I"
+  ]);
 }
