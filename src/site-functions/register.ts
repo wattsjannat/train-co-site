@@ -178,4 +178,6 @@ export function registerSiteFunctions() {
   for (const [name, entry] of Object.entries(siteFunctionManifest)) {
     window.__siteFunctions[name] = entry.fn;
   }
+  
+  console.log('[Site Functions] Registered', Object.keys(window.__siteFunctions).length, 'functions:', Object.keys(window.__siteFunctions));
 }
