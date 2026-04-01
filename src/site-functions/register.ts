@@ -19,6 +19,7 @@
  */
 
 import setTheme from './setTheme';
+import getWelcomeJourneyTool from './getWelcomeJourneyTool';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -59,6 +60,33 @@ export const siteFunctionManifest: Record<string, SiteFunctionEntry> = {
       required: ['theme'],
     },
     defaults: { theme: 'system' },
+  },
+  getWelcomeJourneyTool: {
+    fn: getWelcomeJourneyTool,
+    description:
+      'Get welcome journey tool data for rendering UI components in the Mobeus career onboarding flow. Returns tool metadata including component type, options, badge, title, subtitle, and progress indicators. Supports 19 different tools across greeting, industry qualification, role selection, interest exploration, priorities, and registration steps.',
+    schema: {
+      type: 'object',
+      properties: {
+        toolId: {
+          type: 'string',
+          description: 'The tool ID to retrieve (e.g., "2194-A" for greeting, "7483-A" for industry, "4521-A" for tech roles, "9183-A" for registration)',
+          enum: [
+            '2194-A', '2194-B', // Greeting & Tell More
+            '7483-A', '7483-B', '7483-C', // Industry
+            '4521-A', '4521-B', '4521-C', '4521-D', '4521-E', '4521-F', '4521-G', // Roles
+            '4521-H', '4521-I', '4521-J', '4521-K', // Interests
+            '1657-A', '1657-B', // Priorities
+            '9183-A' // Registration
+          ],
+        },
+        customIndustry: {
+          type: 'string',
+          description: 'Optional: Custom industry name for dynamic role generation (required only for tool 4521-E)',
+        },
+      },
+      required: ['toolId'],
+    },
   },
 };
 
