@@ -174,15 +174,10 @@ declare global {
 export function registerSiteFunctions() {
   if (typeof window === 'undefined') return;
 
-  // Preserve any early-registered functions (like navigateToSection proxy)
+  // Preserve any early-registered functions (like navigateToSection proxy from inline script)
   window.__siteFunctions = window.__siteFunctions || {};
   
   for (const [name, entry] of Object.entries(siteFunctionManifest)) {
-    // Don't overwrite navigateToSection if it was already registered early
-    if (name === 'navigateToSection' && window.__siteFunctions[name]) {
-      console.log('[Site Functions] Preserving early-registered navigateToSection proxy');
-      continue;
-    }
     window.__siteFunctions[name] = entry.fn;
   }
   
