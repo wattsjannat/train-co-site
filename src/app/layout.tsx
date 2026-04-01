@@ -69,11 +69,15 @@ export default function RootLayout({
             window.MOBEUS_VOICE_ID = '8a4dfef7aacf4ad88c10ae9391bd3098';
             
             // Initialize site functions object IMMEDIATELY (before SDK loads)
-            window.__siteFunctions = {};
+            window.__siteFunctions = window.__siteFunctions || {};
+            
+            console.log('[Early Init] Registering navigateToSection proxy BEFORE SDK loads');
             
             // Register navigateToSection proxy IMMEDIATELY
             window.__siteFunctions.navigateToSection = function(args) {
-              console.log('[navigateToSection proxy] Called with args:', args);
+              console.log('[navigateToSection proxy] ✅ PROXY CALLED with args:', args);
+              console.log('[navigateToSection proxy] window.__siteFunctions exists:', !!window.__siteFunctions);
+              console.log('[navigateToSection proxy] Available functions:', Object.keys(window.__siteFunctions || {}));
               
               const { badge, title, subtitle, generativeSubsections } = args;
               const nav = window.UIFrameworkSiteFunctions?.navigateToSection;
@@ -105,6 +109,8 @@ export default function RootLayout({
               }
             };
             
+            console.log('[Early Init] navigateToSection proxy registered on window.__siteFunctions');
+            console.log('[Early Init] window.__siteFunctions =', Object.keys(window.__siteFunctions));
             console.log('[UIFramework] Pre-init config with API key, avatar/voice IDs, and navigateToSection proxy');
           `}}
         />
