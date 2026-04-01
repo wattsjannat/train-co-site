@@ -14,8 +14,6 @@ next-env.d.ts
 
 # Documentation (not needed in git)
 docs/
-*.md
-!README.md
 
 # Terraform (managed in trainco-v1 repo)
 terraform/
