@@ -33,13 +33,35 @@ export default function RootLayout({
           rel="stylesheet"
         />
         
-        {/* Initialize site functions object early */}
+        {/* Initialize site functions with navigateToSection bridge */}
         <Script
           id="site-functions-init"
           strategy="beforeInteractive"
           dangerouslySetInnerHTML={{__html: `
             window.__siteFunctions = {};
-            console.log('[Site Functions] Initialized early');
+            
+            // Register navigateToSection bridge IMMEDIATELY
+            window.__siteFunctions.navigateToSection = function(args) {
+              console.log('[navigateToSection bridge] Called with:', args);
+              const { badge, title, subtitle, generativeSubsections } = args;
+              const sdkNav = window.UIFrameworkSiteFunctions?.navigateToSection;
+              
+              if (typeof sdkNav === 'function') {
+                console.log('[navigateToSection bridge] Calling SDK');
+                return sdkNav(badge, title, subtitle, generativeSubsections);
+              } else {
+                console.warn('[navigateToSection bridge] SDK not ready, queueing');
+                setTimeout(() => {
+                  const nav = window.UIFrameworkSiteFunctions?.navigateToSection;
+                  if (typeof nav === 'function') {
+                    nav(badge, title, subtitle, generativeSubsections);
+                  }
+                }, 1000);
+                return { success: true, queued: true };
+              }
+            };
+            
+            console.log('[Site Functions] Initialized with navigateToSection bridge');
           `}}
         />
         
