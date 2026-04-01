@@ -26,33 +26,24 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Instrument+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;500;600&display=swap"
-          rel="stylesheet"
-        />
-        
-        {/* Initialize site functions with navigateToSection bridge */}
-        <Script
-          id="site-functions-init"
-          strategy="beforeInteractive"
-          dangerouslySetInnerHTML={{__html: `
+        <script dangerouslySetInnerHTML={{__html: `
+          (function() {
             window.__siteFunctions = {};
-            
-            // Register navigateToSection bridge IMMEDIATELY
             window.__siteFunctions.navigateToSection = function(args) {
-              console.log('[navigateToSection bridge] Called with:', args);
-              const { badge, title, subtitle, generativeSubsections } = args;
-              const sdkNav = window.UIFrameworkSiteFunctions?.navigateToSection;
+              console.log('[navigateToSection bridge v3] Called with:', args);
+              var badge = args.badge;
+              var title = args.title;
+              var subtitle = args.subtitle;
+              var generativeSubsections = args.generativeSubsections;
+              var sdkNav = window.UIFrameworkSiteFunctions && window.UIFrameworkSiteFunctions.navigateToSection;
               
               if (typeof sdkNav === 'function') {
-                console.log('[navigateToSection bridge] Calling SDK');
+                console.log('[navigateToSection bridge v3] Calling SDK');
                 return sdkNav(badge, title, subtitle, generativeSubsections);
               } else {
-                console.warn('[navigateToSection bridge] SDK not ready, queueing');
-                setTimeout(() => {
-                  const nav = window.UIFrameworkSiteFunctions?.navigateToSection;
+                console.warn('[navigateToSection bridge v3] SDK not ready, queueing');
+                setTimeout(function() {
+                  var nav = window.UIFrameworkSiteFunctions && window.UIFrameworkSiteFunctions.navigateToSection;
                   if (typeof nav === 'function') {
                     nav(badge, title, subtitle, generativeSubsections);
                   }
@@ -60,9 +51,15 @@ export default function RootLayout({
                 return { success: true, queued: true };
               }
             };
-            
-            console.log('[Site Functions v2.0] Initialized with navigateToSection bridge');
-          `}}
+            console.log('[Site Functions v3] navigateToSection bridge registered');
+          })();
+        `}} />
+        
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Instrument+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;500;600&display=swap"
+          rel="stylesheet"
         />
         
         {/* Mobeus 2.0 SDK Pre-Configuration */}
