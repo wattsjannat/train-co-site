@@ -33,6 +33,17 @@ export default function RootLayout({
           rel="stylesheet"
         />
         
+        {/* CRITICAL: Register site functions FIRST before anything else */}
+        <Script
+          id="site-functions-init"
+          strategy="beforeInteractive"
+          dangerouslySetInnerHTML={{__html: `
+            console.log('[CRITICAL] Initializing window.__siteFunctions BEFORE everything');
+            window.__siteFunctions = {};
+            console.log('[CRITICAL] window.__siteFunctions initialized:', window.__siteFunctions);
+          `}}
+        />
+        
         {/* UIFramework Pre-Configuration with Agent API Key */}
         <Script
           id="uiframework-preconfig"
@@ -111,6 +122,12 @@ export default function RootLayout({
             
             console.log('[Early Init] navigateToSection proxy registered on window.__siteFunctions');
             console.log('[Early Init] window.__siteFunctions =', Object.keys(window.__siteFunctions));
+            console.log('[Early Init] typeof window.__siteFunctions.navigateToSection =', typeof window.__siteFunctions.navigateToSection);
+            console.log('[Early Init] window.__siteFunctions.navigateToSection =', window.__siteFunctions.navigateToSection);
+            
+            // Make absolutely sure it's accessible
+            window.__siteFunctions['navigateToSection'] = window.__siteFunctions.navigateToSection;
+            
             console.log('[UIFramework] Pre-init config with API key, avatar/voice IDs, and navigateToSection proxy');
           `}}
         />
