@@ -1,0 +1,110 @@
+{
+  "success": true,
+  "count": 21,
+  "functions": [
+    {
+      "name": "setTheme",
+      "description": "Switch the website theme between light, dark, or system preference",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "theme": {
+            "type": "string",
+            "enum": ["light", "dark", "system"]
+          }
+        },
+        "required": ["theme"]
+      }
+    },
+    {
+      "name": "navigateToSection",
+      "description": "Navigate to a UI section with badge, title, subtitle, and generativeSubsections",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "badge": { "type": "string" },
+          "title": { "type": "string" },
+          "subtitle": { "type": "string" },
+          "generativeSubsections": { "type": "array" }
+        },
+        "required": ["badge", "title", "subtitle", "generativeSubsections"]
+      }
+    },
+    {
+      "name": "journeyWelcomeGreeting",
+      "description": "Show welcome greeting with initial options"
+    },
+    {
+      "name": "journeyWelcomeTellmore",
+      "description": "Show tell me more options"
+    },
+    {
+      "name": "journeyWelcomeIndustry",
+      "description": "Show industry selection"
+    },
+    {
+      "name": "journeyWelcomeIndustryCustom",
+      "description": "Show custom industry text input"
+    },
+    {
+      "name": "journeyWelcomeExploration",
+      "description": "Show exploration options"
+    },
+    {
+      "name": "journeyWelcomeRoleTechnology",
+      "description": "Show technology role options"
+    },
+    {
+      "name": "journeyWelcomeRoleFinance",
+      "description": "Show finance role options"
+    },
+    {
+      "name": "journeyWelcomeRoleHealthcare",
+      "description": "Show healthcare role options"
+    },
+    {
+      "name": "journeyWelcomeRoleConstruction",
+      "description": "Show construction role options"
+    },
+    {
+      "name": "journeyWelcomeRoleCustomIndustry",
+      "description": "Show custom industry role options"
+    },
+    {
+      "name": "journeyWelcomeRoleGeneric",
+      "description": "Show generic role options"
+    },
+    {
+      "name": "journeyWelcomeRoleCustomInput",
+      "description": "Show custom role text input"
+    },
+    {
+      "name": "journeyWelcomeInterestTechnology",
+      "description": "Show technology interest options"
+    },
+    {
+      "name": "journeyWelcomeInterestFinance",
+      "description": "Show finance interest options"
+    },
+    {
+      "name": "journeyWelcomeInterestHealthcare",
+      "description": "Show healthcare interest options"
+    },
+    {
+      "name": "journeyWelcomeInterestConstruction",
+      "description": "Show construction interest options"
+    },
+    {
+      "name": "journeyWelcomePriority",
+      "description": "Show priority selection options"
+    },
+    {
+      "name": "journeyWelcomePriorityCustom",
+      "description": "Show custom priority text input"
+    },
+    {
+      "name": "journeyWelcomeRegistration",
+      "description": "Show registration form"
+    }
+  ]
+}
