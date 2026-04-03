@@ -1,0 +1,118 @@
+{
+  "name": "navigateToSection",
+  "description": "Update the UI with a navigation payload. Receives badge, title, subtitle, and generativeSubsections. This is the core function for updating the UI state. Use navigateWithKnowledgeKey for standard screens instead of building JSON manually.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "badge": {
+        "type": "string",
+        "description": "Context label displayed at the top (e.g. 'MOBEUS CAREER')"
+      },
+      "title": {
+        "type": "string",
+        "description": "Main heading for the screen"
+      },
+      "subtitle": {
+        "type": "string",
+        "description": "Subheading or description"
+      },
+      "generativeSubsections": {
+        "type": "array",
+        "description": "Array of screen sections, each with a templateId and props",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "Unique identifier for this subsection"
+            },
+            "templateId": {
+              "type": "string",
+              "description": "Template component name",
+              "enum": [
+                "GlassmorphicOptions",
+                "MultiSelectOptions",
+                "TextInput",
+                "RegistrationForm",
+                "LoadingLinkedIn",
+                "CandidateSheet",
+                "CardStack",
+                "Dashboard",
+                "ProfileSheet",
+                "SkillsDetail",
+                "MarketRelevanceDetail",
+                "CareerGrowthDetail",
+                "JobSearchSheet",
+                "JobDetailSheet",
+                "EligibilitySheet",
+                "CloseGapSheet",
+                "JobApplicationsSheet",
+                "SavedJobsStack",
+                "PastApplicationsSheet",
+                "TargetRoleSheet",
+                "MyLearningSheet",
+                "SkillTestFlow"
+              ]
+            },
+            "props": {
+              "type": "object",
+              "description": "Props specific to the template component"
+            }
+          },
+          "required": ["id", "templateId", "props"]
+        }
+      }
+    },
+    "required": ["badge", "title", "subtitle", "generativeSubsections"]
+  },
+  "examples": [
+    {
+      "description": "Show welcome greeting with glassmorphic bubbles",
+      "parameters": {
+        "badge": "MOBEUS CAREER",
+        "title": "Welcome",
+        "subtitle": "Getting started",
+        "generativeSubsections": [
+          {
+            "id": "start",
+            "templateId": "GlassmorphicOptions",
+            "props": {
+              "bubbles": [
+                { "label": "Yes, I'm ready" },
+                { "label": "Not just yet" },
+                { "label": "Tell me more" }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "description": "Show industry selection with multi-select",
+      "parameters": {
+        "badge": "MOBEUS CAREER",
+        "title": "Industry",
+        "subtitle": "Select your industry",
+        "generativeSubsections": [
+          {
+            "id": "industry",
+            "templateId": "MultiSelectOptions",
+            "props": {
+              "bubbles": [
+                { "label": "Technology" },
+                { "label": "Finance" },
+                { "label": "Healthcare" },
+                { "label": "Construction" },
+                { "label": "Something else" },
+                { "label": "I'm not sure" }
+              ],
+              "showProgress": true,
+              "progressStep": 0,
+              "progressTotal": 3
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

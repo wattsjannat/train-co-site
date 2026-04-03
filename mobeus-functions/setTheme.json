@@ -1,0 +1,35 @@
+{
+  "name": "setTheme",
+  "description": "Switch the website theme between light, dark, or system preference",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "theme": {
+        "type": "string",
+        "enum": ["light", "dark", "system"],
+        "description": "The theme to apply"
+      }
+    },
+    "required": ["theme"]
+  },
+  "examples": [
+    {
+      "description": "Switch to dark theme",
+      "parameters": {
+        "theme": "dark"
+      }
+    },
+    {
+      "description": "Switch to light theme",
+      "parameters": {
+        "theme": "light"
+      }
+    },
+    {
+      "description": "Use system preference",
+      "parameters": {
+        "theme": "system"
+      }
+    }
+  ]
+}

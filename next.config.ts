@@ -11,6 +11,10 @@ const nextConfig: NextConfig = {
   generateBuildId: async () => {
     return `build-${Date.now()}`;
   },
+  // Expose MCP_SERVER_URL to client-side mcpBridge (remote fallback base URL).
+  env: {
+    MCP_SERVER_URL: process.env.MCP_SERVER_URL ?? '',
+  },
 };
 
 export default nextConfig;

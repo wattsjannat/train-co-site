@@ -1,0 +1,98 @@
+{
+  "agent_id": "f0181b10-6d3d-4810-956c-1a3eef93653d",
+  "site_functions": [
+    {
+      "name": "setTheme",
+      "description": "Switch the website theme between light, dark, or system preference",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "theme": {
+            "type": "string",
+            "enum": ["light", "dark", "system"],
+            "description": "The theme to apply"
+          }
+        },
+        "required": ["theme"]
+      }
+    },
+    {
+      "name": "navigateToSection",
+      "description": "Update the UI with a navigation payload. Receives badge, title, subtitle, and generativeSubsections. This is the core function for updating the UI state.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "badge": {
+            "type": "string",
+            "description": "Context label displayed at the top (e.g. 'MOBEUS CAREER')"
+          },
+          "title": {
+            "type": "string",
+            "description": "Main heading for the screen"
+          },
+          "subtitle": {
+            "type": "string",
+            "description": "Subheading or description"
+          },
+          "generativeSubsections": {
+            "type": "array",
+            "description": "Array of screen sections, each with a templateId and props",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "description": "Unique identifier for this subsection"
+                },
+                "templateId": {
+                  "type": "string",
+                  "description": "Template component name (e.g. GlassmorphicOptions, MultiSelectOptions, TextInput, CandidateSheet, CardStack, Dashboard, ProfileSheet, etc.)"
+                },
+                "props": {
+                  "type": "object",
+                  "description": "Props specific to the template component"
+                }
+              },
+              "required": ["id", "templateId", "props"]
+            }
+          }
+        },
+        "required": ["badge", "title", "subtitle", "generativeSubsections"]
+      }
+    },
+    {
+      "name": "navigateWithKnowledgeKey",
+      "description": "Load a static screen from the knowledge base by key. Use this for all welcome journey steps instead of building JSON manually. This is the preferred method for standard screens.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "enum": [
+              "welcome_greeting",
+              "welcome_tell_me_more",
+              "qualification_industry",
+              "qualification_industry_text_input",
+              "qualification_exploration",
+              "qualification_role_technology",
+              "qualification_role_finance",
+              "qualification_role_healthcare",
+              "qualification_role_construction",
+              "qualification_role_generic",
+              "qualification_role_custom_text_input",
+              "qualification_interest_technology",
+              "qualification_interest_finance",
+              "qualification_interest_healthcare",
+              "qualification_interest_construction",
+              "qualification_priority",
+              "qualification_priority_text_input",
+              "qualification_registration"
+            ],
+            "description": "The knowledge key for the screen to load. Each key corresponds to a predefined UI screen with specific templates and options."
+          }
+        },
+        "required": ["key"]
+      }
+    }
+  ]
+}

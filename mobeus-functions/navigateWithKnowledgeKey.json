@@ -1,0 +1,92 @@
+{
+  "name": "navigateWithKnowledgeKey",
+  "description": "Load a static screen from the knowledge base by key. Use this for all welcome journey steps instead of building JSON manually. This is the PREFERRED method for standard screens as it ensures consistency and reduces errors.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "key": {
+        "type": "string",
+        "enum": [
+          "welcome_greeting",
+          "welcome_tell_me_more",
+          "qualification_industry",
+          "qualification_industry_text_input",
+          "qualification_exploration",
+          "qualification_role_technology",
+          "qualification_role_finance",
+          "qualification_role_healthcare",
+          "qualification_role_construction",
+          "qualification_role_generic",
+          "qualification_role_custom_text_input",
+          "qualification_interest_technology",
+          "qualification_interest_finance",
+          "qualification_interest_healthcare",
+          "qualification_interest_construction",
+          "qualification_priority",
+          "qualification_priority_text_input",
+          "qualification_registration"
+        ],
+        "description": "The knowledge key for the screen to load. Each key corresponds to a predefined UI screen with specific templates and options."
+      }
+    },
+    "required": ["key"]
+  },
+  "key_descriptions": {
+    "welcome_greeting": "Initial welcome screen with 3 glassmorphic bubbles: 'Yes, I'm ready', 'Not just yet', 'Tell me more'",
+    "welcome_tell_me_more": "Information screen about trAIn with options to learn more",
+    "qualification_industry": "Industry selection screen (MultiSelect) with Technology, Finance, Healthcare, Construction, Something else, I'm not sure",
+    "qualification_industry_text_input": "Text input for custom industry entry",
+    "qualification_exploration": "Exploration questions for users unsure about their industry",
+    "qualification_role_technology": "Role selection for Technology industry",
+    "qualification_role_finance": "Role selection for Finance industry",
+    "qualification_role_healthcare": "Role selection for Healthcare industry",
+    "qualification_role_construction": "Role selection for Construction industry",
+    "qualification_role_generic": "Generic role selection for other industries",
+    "qualification_role_custom_text_input": "Text input for custom role entry",
+    "qualification_interest_technology": "Interest-based exploration for Technology",
+    "qualification_interest_finance": "Interest-based exploration for Finance",
+    "qualification_interest_healthcare": "Interest-based exploration for Healthcare",
+    "qualification_interest_construction": "Interest-based exploration for Construction",
+    "qualification_priority": "Job search priority selection (MultiSelect) - what matters most",
+    "qualification_priority_text_input": "Text input for custom priority",
+    "qualification_registration": "Registration form with LinkedIn and email options"
+  },
+  "examples": [
+    {
+      "description": "Show welcome greeting at session start",
+      "parameters": {
+        "key": "welcome_greeting"
+      }
+    },
+    {
+      "description": "Show industry selection after user is ready",
+      "parameters": {
+        "key": "qualification_industry"
+      }
+    },
+    {
+      "description": "Show role selection for technology industry",
+      "parameters": {
+        "key": "qualification_role_technology"
+      }
+    },
+    {
+      "description": "Show priority selection after role is chosen",
+      "parameters": {
+        "key": "qualification_priority"
+      }
+    },
+    {
+      "description": "Show registration form as final step",
+      "parameters": {
+        "key": "qualification_registration"
+      }
+    }
+  ],
+  "usage_notes": [
+    "ALWAYS use this function for welcome journey steps instead of manually building navigateToSection payloads",
+    "Keys are predefined and tested - do not try to create new keys",
+    "Each key returns a complete UI payload with correct templates, bubbles, and progress indicators",
+    "The function handles all the complexity of UI state management internally"
+  ]
+}
