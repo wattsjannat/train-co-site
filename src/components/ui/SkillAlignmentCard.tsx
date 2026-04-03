@@ -1,3 +1,4 @@
+'use client';
 import { CheckCircle2, BookOpen } from "lucide-react";
 import type { SkillMatch } from "@/mocks/eligibilityData";
 

@@ -1,24 +1,22 @@
 /**
- * navigateToSection - Bridge function for Mobeus internal calls
- * 
- * Mobeus internally tries to call this as a site function.
- * This function receives the data and triggers the actual SDK navigateToSection.
+ * Registered as window.__siteFunctions.navigateToSection (LiveKit callSiteFunction RPC).
+ * Delegates to the live implementation installed by usePhaseFlow on
+ * window.UIFrameworkSiteFunctions.navigateToSection once the talent UI is mounted.
  */
-export default function navigateToSection(args: any) {
-  console.log('[navigateToSection site function] Called with args:', args);
-  
-  // Extract the data
-  const { badge, title, subtitle, generativeSubsections } = args;
-  
-  // Call the real SDK function
-  const sdkNav = (window as any).UIFrameworkSiteFunctions?.navigateToSection;
-  
-  if (typeof sdkNav === 'function') {
-    console.log('[navigateToSection site function] Calling SDK navigateToSection');
-    const result = sdkNav(badge, title, subtitle, generativeSubsections);
-    return { success: true, result };
-  } else {
-    console.error('[navigateToSection site function] SDK navigateToSection not available yet');
-    return { success: false, error: 'SDK not ready' };
+
+type NavigateImpl = (...args: unknown[]) => unknown;
+
+export default function navigateToSection(args: unknown): ReturnType<NavigateImpl> {
+  const impl = (
+    window as unknown as { UIFrameworkSiteFunctions?: { navigateToSection?: NavigateImpl } }
+  ).UIFrameworkSiteFunctions?.navigateToSection;
+
+  if (typeof impl !== "function") {
+    console.warn(
+      "[navigateToSection] No implementation yet — talent session (usePhaseFlow) not mounted.",
+    );
+    return false;
   }
+
+  return impl(args);
 }

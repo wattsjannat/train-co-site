@@ -1,7 +1,9 @@
+'use client';
+
 import { useMemo } from "react";
 import { ArrowUpRight, Zap, Target, BookOpen, Award } from "lucide-react";
 import { CircularGauge } from "@/components/charts/CircularGauge";
-import { BarChart, type BarChartItem } from "@/components/charts/BarChartTrainco";
+import { BarChart, type BarChartItem } from "@/components/charts/BarChart";
 import { ProgressBar } from "@/components/charts/ProgressBar";
 import { BaseSheetLayout } from "@/components/ui/BaseSheetLayout";
 import { sendBackToProfileIntent } from "@/utils/teleIntent";
@@ -69,13 +71,11 @@ export function CareerGrowthSheet({ rawCareerGrowth }: CareerGrowthSheetProps) {
   const summary = (data?.summary as Record<string, number>) ?? {};
   const targetRole = (data?.target_role as Record<string, unknown>) ?? {};
   const targetTitle = (targetRole.title as string) ?? "Senior AI Architect";
-  // Backend uses skills_remaining and estimated_months (not skills_to_go / time_estimate)
   const skillsToGo = (targetRole.skills_remaining as number) ?? 3;
   const timeEstimate = (targetRole.estimated_months as string) ?? "~4-6 months";
 
   const appToInterviewRate = summary.app_to_interview_rate ?? 34;
   const compensationRatio = summary.compensation_ratio ?? 18;
-  // market_percentile and yoy_growth_pct live in compensation_trajectory, not summary
   const marketPercentile = (compTraj.market_percentile as number) ?? 68;
   const yoyGrowth = (compTraj.yoy_growth_pct as number) ?? compensationRatio;
 
@@ -130,7 +130,6 @@ export function CareerGrowthSheet({ rawCareerGrowth }: CareerGrowthSheetProps) {
       testId="career-growth-sheet"
       onClose={() => void sendBackToProfileIntent()}
     >
-        {/* Header */}
         <div className="flex flex-col gap-1">
           <h1 className="text-[var(--text-primary)] text-[32px] font-semibold leading-10">
             Career Growth
@@ -140,7 +139,6 @@ export function CareerGrowthSheet({ rawCareerGrowth }: CareerGrowthSheetProps) {
           </p>
         </div>
 
-        {/* Top metrics: gauge + stat boxes */}
         <div className="flex gap-6 items-start">
           <CircularGauge percentage={gaugeScores.careerGrowth ?? careerGrowthFallback} size={94} />
           <div className="flex-1 flex flex-wrap gap-2">
@@ -163,7 +161,6 @@ export function CareerGrowthSheet({ rawCareerGrowth }: CareerGrowthSheetProps) {
           </div>
         </div>
 
-        {/* Target Role card */}
         <div className="glass-surface rounded-2xl p-4 flex flex-col gap-4">
           <div className="flex items-center gap-3">
             <div
@@ -187,7 +184,6 @@ export function CareerGrowthSheet({ rawCareerGrowth }: CareerGrowthSheetProps) {
           <span className="text-[var(--accent)] text-base leading-5">Pick your Target Role →</span>
         </div>
 
-        {/* Application Funnel */}
         {stages.length > 0 && (
           <div className="flex flex-col gap-4">
             <h2 className="text-[var(--text-primary)] text-xl font-semibold leading-6">Application Funnel</h2>
@@ -232,7 +228,6 @@ export function CareerGrowthSheet({ rawCareerGrowth }: CareerGrowthSheetProps) {
           </div>
         )}
 
-        {/* Compensation Trajectory */}
         <div className="flex flex-col gap-4">
           <h2 className="text-[var(--text-primary)] text-xl font-semibold leading-6">Compensation Trajectory</h2>
           <div className="glass-surface rounded-2xl px-5 py-[21px] flex flex-col gap-4">
@@ -256,7 +251,6 @@ export function CareerGrowthSheet({ rawCareerGrowth }: CareerGrowthSheetProps) {
           </div>
         </div>
 
-        {/* Interview Effectiveness */}
         {scores.length > 0 && (
           <div className="flex flex-col gap-4">
             <h2 className="text-[var(--text-primary)] text-xl font-semibold leading-6">Interview Effectiveness</h2>
@@ -293,7 +287,6 @@ export function CareerGrowthSheet({ rawCareerGrowth }: CareerGrowthSheetProps) {
           </div>
         )}
 
-        {/* Skills Added */}
         {skillMonths.length > 0 && (
           <div className="flex flex-col gap-2">
             <div className="flex items-center justify-between">
@@ -326,7 +319,6 @@ export function CareerGrowthSheet({ rawCareerGrowth }: CareerGrowthSheetProps) {
           </div>
         )}
 
-        {/* Recent Achievements */}
         {achievements.length > 0 && (
           <div className="flex flex-col gap-2">
             <h2 className="text-[var(--text-primary)] text-xl font-semibold leading-6">Recent Achievements</h2>

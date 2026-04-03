@@ -1,6 +1,7 @@
+'use client';
+
 import { useState, useEffect } from "react";
-import { teleState, type TeleConnectionState, type TeleActiveMode } from "@/lib/teleState";
-import { resolveUIModeFromTeleMode, setUIMode } from "@/lib/designSystem";
+import { teleState, type TeleConnectionState, type TeleActiveMode } from "@/platform/teleState";
 
 interface TeleStateResult {
   connected: boolean;
@@ -10,19 +11,17 @@ interface TeleStateResult {
 
 /**
  * Reactive hook for the global teleState singleton.
- * Subscribes to `tele-connection-changed` and `tele-mode-changed` custom events
- * and keeps React state in sync. Also syncs the UI design-system mode.
+ * Subscribes to tele-connection-changed and tele-mode-changed custom events.
  */
 export function useTeleState(): TeleStateResult {
   const [connected, setConnected] = useState(() => teleState.connected);
-  const [connectionState, setConnectionState] = useState(() => teleState.connectionState);
-  const [activeMode, setActiveMode] = useState(() => teleState.activeMode);
+  const [connectionState, setConnectionState] = useState<TeleConnectionState>(() => teleState.connectionState);
+  const [activeMode, setActiveMode] = useState<TeleActiveMode>(() => teleState.activeMode);
 
   useEffect(() => {
     setConnected(teleState.connected);
     setConnectionState(teleState.connectionState);
     setActiveMode(teleState.activeMode);
-    setUIMode(resolveUIModeFromTeleMode(teleState.activeMode));
 
     const onConnection = () => {
       setConnected(teleState.connected);
@@ -32,7 +31,6 @@ export function useTeleState(): TeleStateResult {
     const onMode = (e: Event) => {
       const mode = (e as CustomEvent<{ activeMode: string }>).detail.activeMode;
       setActiveMode(mode as TeleActiveMode);
-      setUIMode(resolveUIModeFromTeleMode(mode));
     };
 
     window.addEventListener("tele-connection-changed", onConnection);

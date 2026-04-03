@@ -1,10 +1,16 @@
+'use client';
 const MAX_DOTS = 10;
 
 interface DotPlotProps {
+  /** Label shown on the left (e.g. skill name). */
   label: string;
+  /** Number of solid (filled) dots. */
   filled: number;
+  /** Number of bordered (target gap) dots. */
   target?: number;
+  /** Total dot slots. Default 10. */
   total?: number;
+  /** Value displayed to the right of the dots. */
   value?: number | string;
 }
 
@@ -54,5 +60,3 @@ export function DotPlot({
     </div>
   );
 }
-
-export default DotPlot;

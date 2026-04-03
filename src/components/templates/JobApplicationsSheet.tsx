@@ -1,3 +1,4 @@
+'use client';
 import { useMemo } from "react";
 import { Briefcase, ChevronRight } from "lucide-react";
 import { ApplicationCard } from "@/components/ui/ApplicationCard";

@@ -1,3 +1,4 @@
+'use client';
 import { Clock, AlertTriangle } from "lucide-react";
 import { APPLICATION_STAGES, type JobApplication } from "@/mocks/jobApplicationData";
 

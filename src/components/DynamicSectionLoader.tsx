@@ -1,5 +1,7 @@
+'use client';
+
 import React, { Suspense, useEffect, useRef } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion } from "motion/react";
 import type { GenerativeSection } from "@/types/flow";
 import { TEMPLATE_REGISTRY, REQUIRED_PROPS } from "@/data/templateRegistry";
 import { informTele } from "@/utils/teleUtils";
@@ -23,6 +25,21 @@ const SOLID_BG_TEMPLATES = new Set([
   "JobDetailSheet",
 ]);
 
+/** Only nudge the agent to use navigateToSection on templates that are “waiting for AI navigation” — not Dashboard / sheets where the client or user drives flow. */
+const NAVIGATE_REMINDER_TEMPLATES = new Set([
+  "WelcomeLanding",
+  "EmptyScreen",
+  "LoadingGeneral",
+  "LoadingLinkedIn",
+]);
+
+/** These props must be non-empty arrays when present (empty [] passes `!= null` but shows no UI). */
+const NON_EMPTY_ARRAY_PROPS: Record<string, string[]> = {
+  GlassmorphicOptions: ["bubbles"],
+  MultiSelectOptions: ["bubbles"],
+  SavedJobsStack: ["bubbles"],
+};
+
 interface DynamicSectionLoaderProps {
   sections: GenerativeSection[];
 }
@@ -43,22 +60,7 @@ class ErrorBoundary extends React.Component<
   }
 }
 
-/**
- * Renders ALL active sections sent by the Runtime Agent via navigateToSection.
- *
- * Each section is rendered as an `absolute inset-0` layer stacked in array order
- * (first section = bottom, last section = top). This enables simultaneous
- * composition, e.g. Dashboard (profile button) + ProfileSheet (bottom card)
- * or Dashboard + JobSearchSheet, etc.
- *
- * AnimatePresence handles fade-in/fade-out whenever the sections array changes.
- *
- * Validation (required props + invalid templateId) runs against the LAST section
- * in the array (the most recently requested template). On drift, every 10 loads
- * the AI receives a REMINDER to always call navigateToSection.
- */
 export function DynamicSectionLoader({ sections }: DynamicSectionLoaderProps) {
-  // Validation runs on the last (most recently added) section.
   const current = sections[sections.length - 1];
   const loadCountRef = useRef(0);
   const prevIdRef = useRef<string>("");
@@ -70,19 +72,31 @@ export function DynamicSectionLoader({ sections }: DynamicSectionLoaderProps) {
       prevIdRef.current = current.id;
       loadCountRef.current += 1;
 
-      if (loadCountRef.current % 10 === 0) {
+      if (
+        loadCountRef.current % 10 === 0 &&
+        NAVIGATE_REMINDER_TEMPLATES.has(current.templateId)
+      ) {
         informTele(
-          "[REMINDER] You MUST call navigateToSection on EVERY conversational turn. Never respond with text only. " +
-            "Valid templateIds: EmptyScreen, WelcomeLanding, GlassmorphicOptions, RegistrationForm, LoadingGeneral, LoadingLinkedIn, CardStack, SavedJobsStack, CardStackJobPreviewSheet, Dashboard, ProfileSheet, CandidateSheet, JobSearchSheet, JobDetailSheet, EligibilitySheet, CloseGapSheet, JobApplicationsSheet, PastApplicationsSheet, SkillsDetail, MarketRelevanceDetail, CareerGrowthDetail, MarketRelevanceSheet, CareerGrowthSheet, MyLearningSheet, TargetRoleSheet.."
+          "[REMINDER] Call navigateToSection when advancing from this shell (do not stay on text-only). " +
+            "Valid templateIds include: EmptyScreen, WelcomeLanding, GlassmorphicOptions, RegistrationForm, LoadingGeneral, LoadingLinkedIn, CardStack, SavedJobsStack, CardStackJobPreviewSheet, Dashboard, ProfileSheet, CandidateSheet, JobSearchSheet, JobDetailSheet, EligibilitySheet, CloseGapSheet, JobApplicationsSheet, PastApplicationsSheet, SkillsDetail, MarketRelevanceDetail, CareerGrowthDetail, MarketRelevanceSheet, CareerGrowthSheet, MyLearningSheet, TargetRoleSheet. " +
+            "If the user is already on Dashboard, profile, or job sheets, follow client/system hints — do not duplicate navigation."
         );
       }
     }
 
-    // Validate required props on the newest section only
     const required = REQUIRED_PROPS[current.templateId] ?? [];
-    const missing = required.filter(
-      (k) => !(k in current.props) || current.props[k] == null
-    );
+    const mustBeNonEmpty = NON_EMPTY_ARRAY_PROPS[current.templateId] ?? [];
+    const missing = required.filter((k) => {
+      if (!(k in current.props) || current.props[k] == null) return true;
+      if (
+        mustBeNonEmpty.includes(k) &&
+        Array.isArray(current.props[k]) &&
+        (current.props[k] as unknown[]).length === 0
+      ) {
+        return true;
+      }
+      return false;
+    });
     if (missing.length > 0) {
       informTele(
         `[CORRECTION NEEDED] Template "${current.templateId}" is missing required props: ${missing.join(", ")}. ` +
@@ -95,7 +109,7 @@ export function DynamicSectionLoader({ sections }: DynamicSectionLoaderProps) {
     if (!current || TEMPLATE_REGISTRY[current.templateId]) return;
     informTele(
       `[TEMPLATE ERROR] templateId "${current.templateId}" not found. ` +
-        `Valid templateIds: EmptyScreen, WelcomeLanding, GlassmorphicOptions, RegistrationForm, LoadingGeneral, LoadingLinkedIn, CardStack, SavedJobsStack, CardStackJobPreviewSheet, Dashboard, ProfileSheet, CandidateSheet, JobSearchSheet, JobDetailSheet, EligibilitySheet, CloseGapSheet, JobApplicationsSheet, PastApplicationsSheet, SkillsDetail, MarketRelevanceDetail, CareerGrowthDetail, MarketRelevanceSheet, CareerGrowthSheet, MyLearningSheet, TargetRoleSheet.. ` +
+        `Valid templateIds: EmptyScreen, WelcomeLanding, GlassmorphicOptions, RegistrationForm, LoadingGeneral, LoadingLinkedIn, CardStack, SavedJobsStack, CardStackJobPreviewSheet, Dashboard, ProfileSheet, CandidateSheet, JobSearchSheet, JobDetailSheet, EligibilitySheet, CloseGapSheet, JobApplicationsSheet, PastApplicationsSheet, SkillsDetail, MarketRelevanceDetail, CareerGrowthDetail, MarketRelevanceSheet, CareerGrowthSheet, MyLearningSheet, TargetRoleSheet. ` +
         `Call navigateToSection with a valid templateId.`
     );
   }, [current?.templateId]);
@@ -103,11 +117,6 @@ export function DynamicSectionLoader({ sections }: DynamicSectionLoaderProps) {
   if (sections.length === 0) return null;
 
   return (
-    /*
-     * AnimatePresence tracks section additions and removals by key (section.id).
-     * Sections are stacked in order — the last array entry renders on top.
-     * mode is NOT "wait" so sections animate in/out concurrently.
-     */
     <AnimatePresence>
       {sections.map((section) => {
         const Template = TEMPLATE_REGISTRY[section.templateId];
@@ -120,8 +129,8 @@ export function DynamicSectionLoader({ sections }: DynamicSectionLoaderProps) {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-            transition={{ duration: 0.25 }}
-            className="absolute inset-0 bg-[var(--bg)]"
+              transition={{ duration: 0.25 }}
+              className="absolute inset-0 bg-[var(--bg)]"
             />
           );
         }

@@ -1,3 +1,5 @@
+'use client';
+
 import { type ReactNode, useMemo } from "react";
 import { type JobApplication } from "@/mocks/jobApplicationData";
 import { BaseSheetLayout } from "@/components/ui/BaseSheetLayout";

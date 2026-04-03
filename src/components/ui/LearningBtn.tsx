@@ -1,6 +1,8 @@
+'use client';
+
 import { useState } from "react";
 import { GraduationCap } from "lucide-react";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import { notifyTele } from "@/utils/teleUtils";
 import { useCurrentSection } from "@/contexts/CurrentSectionContext";
 import { navigateClientToMyLearning } from "@/utils/clientDashboardNavigate";
@@ -23,13 +25,6 @@ const TEMPLATES_WITH_CLOSE_BTN = new Set([
   "TargetRoleSheet",
 ]);
 
-/**
- * Persistent top-right learning button.
- *
- * Sends `user clicked: my learning` to Tele. Shifts left when the current
- * template renders its own close button (fixed right-4 + safe area) so we
- * stay to the left of the 40px close + gap — includes safe-area-inset-right.
- */
 export function LearningBtn() {
   const [active, setActive] = useState(false);
   const { effectiveTemplateId } = useCurrentSection();
@@ -44,7 +39,6 @@ export function LearningBtn() {
     }
   };
 
-  /** Close is `right: calc(1rem + safe)` and 40px wide; leave ~16px gap before learning. */
   const rightOffset = hasCloseBtn
     ? "calc(5rem + env(safe-area-inset-right, 0px))"
     : "calc(1rem + env(safe-area-inset-right, 0px))";

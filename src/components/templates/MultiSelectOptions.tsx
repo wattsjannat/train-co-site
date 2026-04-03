@@ -1,13 +1,16 @@
-import { useState, useCallback, useMemo } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+'use client';
+import { useState, useCallback, useMemo, useEffect, useRef } from "react";
+import { motion, AnimatePresence } from "motion/react";
 import { sendSelectionIntent } from "@/utils/teleIntent";
+import { informTele } from "@/utils/teleUtils";
 import { useSpeechGate } from "@/hooks/useSpeechGate";
 import { useSpeechFallbackNudge } from "@/hooks/useSpeechFallbackNudge";
 import { useMicGate } from "@/hooks/useMicGate";
 import { useBrowserSpeech } from "@/hooks/useBrowserSpeech";
+import { useVoiceTranscriptIntent } from "@/hooks/useVoiceTranscriptIntent";
 import { useTeleSpeechContext } from "@/contexts/TeleSpeechContext";
 import { resolveBestVoiceMatch, normalizeVoiceText } from "@/utils/voiceMatch";
-import { MiniProgress } from "@/components/cards/MiniProgress";
+import { MiniProgress } from "@/components/MiniProgress";
 import { FloatingAnswerBubbles } from "@/components/FloatingAnswerBubbles";
 import type { BubbleOption } from "@/components/FloatingAnswerBubbles";
 
@@ -40,18 +43,45 @@ export function MultiSelectOptions({
   progressTotal,
 }: MultiSelectOptionsProps) {
   const [selected, setSelected] = useState<string[]>([]);
+  const waitForContinueHintSentRef = useRef(false);
+  const speechLockDispatchedRef = useRef(false);
   const { speechBubbleBottomPx } = useTeleSpeechContext();
   const chipsTop = speechBubbleBottomPx != null
     ? speechBubbleBottomPx + CHIPS_GAP_BELOW_BUBBLE
     : CHIPS_TOP_FALLBACK;
 
-  const { ready, dismissed, setDismissed } = useSpeechGate({
+  const { dismissed, setDismissed } = useSpeechGate({
     hasInteracted: selected.length > 0,
     silenceMs: 250,
     // Match GlassmorphicOptions: prevent the 4-second fallback reveal from instantly
     // triggering auto-dismiss if the AI speaks at exactly that moment.
     dismissSilenceMs: 120_000,
+    maxReadyWaitMs: 2800,
   });
+
+  useEffect(() => {
+    if (dismissed || waitForContinueHintSentRef.current) return;
+    waitForContinueHintSentRef.current = true;
+    informTele(
+      "[SYSTEM] MultiSelectOptions: bubbles and Continue are interactive. " +
+        "Do NOT call navigateToSection or navigateWithKnowledgeKey until the user taps Continue (or voice continue/done) — " +
+        "you will receive `user selected: <comma-separated selections>` via TellTele. " +
+        "Do not advance on individual bubble selections alone.",
+    );
+  }, [dismissed]);
+
+  // Freeze TeleSpeech bubble text so a premature next-step agent line cannot replace this step's question.
+  useEffect(() => {
+    if (dismissed || speechLockDispatchedRef.current) return;
+    speechLockDispatchedRef.current = true;
+    try {
+      window.dispatchEvent(
+        new CustomEvent("multi-select-speech-lock", { detail: { locked: true } }),
+      );
+    } catch {
+      /* noop */
+    }
+  }, [dismissed]);
 
   const { release: releaseMic } = useMicGate();
 
@@ -77,10 +107,17 @@ export function MultiSelectOptions({
     setDismissed(true);
     releaseMic();
     try {
-      window.dispatchEvent(new CustomEvent("multi-select-submitted"));
+      window.dispatchEvent(
+        new CustomEvent("multi-select-speech-lock", { detail: { locked: false } }),
+      );
+      window.dispatchEvent(
+        new CustomEvent<{ progressStep: number }>("multi-select-submitted", {
+          detail: { progressStep: typeof progressStep === "number" ? progressStep : 0 },
+        }),
+      );
     } catch {}
     await sendSelectionIntent(selected.join(", "));
-  }, [selected, dismissed, setDismissed, releaseMic]);
+  }, [selected, dismissed, setDismissed, releaseMic, progressStep]);
 
   const onBrowserTranscript = useCallback(
     (transcript: string) => {
@@ -99,6 +136,10 @@ export function MultiSelectOptions({
     [selected, remaining, handleContinue, handleBubbleSelect],
   );
 
+  useVoiceTranscriptIntent({
+    enabled: !dismissed,
+    onTranscript: onBrowserTranscript,
+  });
   useBrowserSpeech({
     enabled: !dismissed,
     onTranscript: onBrowserTranscript,
@@ -128,7 +169,7 @@ export function MultiSelectOptions({
 
   return (
     <AnimatePresence>
-      {!dismissed && ready && (
+      {!dismissed && (
         <motion.div
           key="multi-select-options"
           data-testid="multi-select-options"

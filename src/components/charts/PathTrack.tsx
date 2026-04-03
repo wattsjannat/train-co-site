@@ -1,3 +1,4 @@
+'use client';
 import { TrendingUp } from "lucide-react";
 
 export interface PathStop {
@@ -6,10 +7,18 @@ export interface PathStop {
 }
 
 interface PathTrackProps {
+  /** Label displayed next to the icon (e.g. "Career Path"). */
   label?: string;
+  /** Left label below the track (e.g. "Current"). */
   fromLabel?: string;
+  /** Right label below the track (e.g. target role name). */
   toLabel?: string;
+  /** Progress percentage 0–100. Clamped internally. */
   percentage: number;
+  /**
+   * When provided, renders labeled markers along the bar instead of
+   * simple fromLabel/toLabel endpoints.
+   */
   stops?: PathStop[];
 }
 
@@ -108,5 +117,3 @@ export function PathTrack({
     </div>
   );
 }
-
-export default PathTrack;

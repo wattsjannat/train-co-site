@@ -1,9 +1,10 @@
+'use client';
 import { useState, useMemo, useEffect } from "react";
 import { X, ChevronDown, ChevronUp, Video, BookOpen, Terminal, ChevronRight, Copy } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence } from "motion/react";
 import { LearningCard } from "@/components/ui/LearningCard";
 import { BaseSheetLayout } from "@/components/ui/BaseSheetLayout";
-import { completeLearning, prefetchAfterLearning } from "@/lib/mcpBridge";
+import { completeLearning, prefetchAfterLearning } from "@/platform/mcpBridge";
 import { notifyTele } from "@/utils/teleUtils";
 import { useSpeechFallbackNudge } from "@/hooks/useSpeechFallbackNudge";
 import { useVoiceActions, type VoiceAction } from "@/hooks/useVoiceActions";
@@ -11,6 +12,7 @@ import { useMcpCache } from "@/contexts/McpCacheContext";
 import { extractGaugeScores } from "@/utils/computeProfileMetrics";
 import { CircularGauge } from "@/components/charts/CircularGauge";
 import { navigateClientToDashboardLanding, navigateClientToTargetRole } from "@/utils/clientDashboardNavigate";
+import { clearLearningCompleted } from "@/utils/visitorMemory";
 
 /* ── Types ──────────────────────────────────────────────────────────────── */
 
@@ -159,13 +161,15 @@ export function MyLearningSheet({ candidateId, initialPhase = "my-learning", onB
   const [phase, setPhase] = useState<PlanPhase>(initialPhase);
   const [expandedSection, setExpandedSection] = useState<string | null>("s1");
 
-  // Pre-fetch after-learning data as soon as this screen opens (if not already done).
-  // completeLearning() will instant-swap from these cached snapshots.
+  useEffect(() => {
+    clearLearningCompleted();
+    // Skill/market/career data: from agent tools + navigateToSection — not client POST /api/invoke.
+  }, []); // Run once on mount
+
   useEffect(() => {
     if (candidateId) void prefetchAfterLearning(candidateId);
-  }, []);
+  }, [candidateId]);
 
-  // Notify agent when phase changes so it can provide contextual speech
   useEffect(() => {
     const messages: Record<PlanPhase, string> = {
       "my-learning": '[SYSTEM] My Learning Dashboard is visible. Say: "Welcome to your learning dashboard. You can pick up where you left off or start a new course to build your skills."',
@@ -186,7 +190,6 @@ export function MyLearningSheet({ candidateId, initialPhase = "my-learning", onB
   const gaugeScores = useMemo(() => {
     const skillCov = extractGaugeScores(cache.skills).skillCoverage;
     const marketRel = (cache.marketRelevance as Record<string, unknown> | null)?.overall_score as number | undefined;
-    // Career Growth always shows arrows (undefined) in learning results, never a percentage
     
     return {
       skillCoverage: skillCov,
@@ -399,14 +402,13 @@ export function MyLearningSheet({ candidateId, initialPhase = "my-learning", onB
     );
   }
 
-  /* ── Lesson: Video — Figma 5230:73509, 73530, 73549–73552, 73590, 6531:75956, 73593, 73568 ── */
+  /* ── Lesson: Video ── */
   if (phase === "lesson-video") {
     return (
       <div
         className="fixed inset-0 z-50 flex min-h-full flex-col bg-[#09090b] bg-gradient-to-b from-[rgba(30,210,94,0.05)] to-[rgba(54,137,255,0.05)] no-lightboard overflow-y-auto"
         data-testid="lesson-video"
       >
-        {/* Header: 5230:73568 close on its own top row; 5230:73520 VIDEO row below (second-screenshot layout) */}
         <div className="px-4 pt-10 pb-3">
           <div className="flex justify-end">
             <button
@@ -431,7 +433,6 @@ export function MyLearningSheet({ candidateId, initialPhase = "my-learning", onB
           </h1>
         </div>
 
-        {/* Video player — scrim 5230:73509 */}
         <div className="mx-4 rounded-2xl overflow-hidden border border-white/[0.08]">
           <div className="relative flex items-center justify-center bg-[rgba(24,24,27,0.74)] min-h-[200px]">
             <div className="w-14 h-14 rounded-full flex items-center justify-center bg-[rgba(54,137,255,0.35)] border-2 border-[rgba(54,137,255,0.6)]">
@@ -455,7 +456,6 @@ export function MyLearningSheet({ candidateId, initialPhase = "my-learning", onB
           </div>
         </div>
 
-        {/* What you're learning — 5230:73549, 73551 */}
         <div className="px-4 mt-4">
           <p className="text-[#fafafa] text-base font-bold leading-6 mb-1">What you&apos;re learning</p>
           <p className="text-[#f4f4f5] text-[13px] leading-5">
@@ -464,7 +464,6 @@ export function MyLearningSheet({ candidateId, initialPhase = "my-learning", onB
           </p>
         </div>
 
-        {/* Timestamps — 5230:73552 */}
         <div className="px-4 mt-4">
           <div className="flex flex-col gap-1">
             <p className="text-[#fafafa] text-base font-bold leading-6">Timestamps</p>
@@ -483,7 +482,6 @@ export function MyLearningSheet({ candidateId, initialPhase = "my-learning", onB
           </div>
         </div>
 
-        {/* Next lesson preview — 5230:73590, 6531:75956 */}
         <div className="mx-4 mt-4 rounded-2xl glass-surface p-4">
           <p className="text-[#fafafa] text-base font-bold leading-6 mb-1">Next:</p>
           <div className="flex flex-col gap-1">
@@ -499,7 +497,6 @@ export function MyLearningSheet({ candidateId, initialPhase = "my-learning", onB
           </div>
         </div>
 
-        {/* Next Lesson — 5230:73593 (compact floating CTA) */}
         <div className="px-4 pb-8 mt-4 flex justify-end safe-bottom">
           <button
             type="button"
@@ -514,7 +511,7 @@ export function MyLearningSheet({ candidateId, initialPhase = "my-learning", onB
     );
   }
 
-  /* ── Lesson: Reading — Figma 5230:73811, 73822, 73813, 73848, 73849, 73923, 73857 ── */
+  /* ── Lesson: Reading ── */
   if (phase === "lesson-reading") {
     const yamlSnippet = `apiVersion: v1
 kind: Pod
@@ -532,7 +529,6 @@ spec:
         className="fixed inset-0 z-50 flex min-h-full flex-col bg-[#09090b] bg-gradient-to-b from-[rgba(30,210,94,0.05)] to-[rgba(54,137,255,0.05)] no-lightboard overflow-y-auto"
         data-testid="lesson-reading"
       >
-        {/* Header: 73813 close row; READING metadata below (matches lesson-video pattern) */}
         <div className="px-4 pt-10 pb-3">
           <div className="flex justify-end">
             <button
@@ -558,7 +554,6 @@ spec:
         </div>
 
         <div className="px-4 flex flex-col gap-4 pb-4">
-          {/* 73848 + 73849 */}
           <div>
             <p className="text-[20px] font-semibold leading-6 text-[#fafafa] mb-3">
               Understanding Pods: The Smallest Unit in Kubernetes
@@ -577,7 +572,6 @@ spec:
             </p>
           </div>
 
-          {/* Code block — 73811 scrim + 73923 */}
           <div className="rounded-2xl overflow-hidden border border-white/[0.08] bg-[rgba(24,24,27,0.74)]">
             <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-white/[0.08]">
               <span className="text-[11px] font-mono text-white/50 lowercase">yaml</span>
@@ -617,7 +611,6 @@ spec:
             </pre>
           </div>
 
-          {/* Finish Course — 73857 */}
           <div className="flex justify-end safe-bottom pb-6">
             <button
               type="button"
@@ -639,7 +632,6 @@ spec:
   /* ── Plan + Customize (transparent overlay — avatar shows through) ── */
   return (
     <div className="fixed inset-0 z-[110] pointer-events-none no-lightboard">
-      {/* X button — back to SkillTestFlow landing or dashboard */}
       <button
         onClick={() => onBack ? onBack() : navigateClientToDashboardLanding()}
         className="absolute top-4 right-4 z-10 size-10 rounded-full flex items-center justify-center bg-[var(--surface-elevated)] pointer-events-auto no-lightboard"
@@ -657,10 +649,9 @@ spec:
           transition={{ type: "spring", damping: 28, stiffness: 280 }}
           className="absolute bottom-32 left-4 right-4 pointer-events-auto"
         >
-          {/* ── Plan view (Images 2, 3, 5) ── */}
+          {/* ── Plan view ── */}
           {phase === "plan" && (
             <div className="flex flex-col gap-3">
-              {/* Scrollable accordion */}
               <div className="rounded-2xl glass-surface overflow-hidden max-h-[48vh] flex flex-col min-h-0">
                 <div className="overflow-y-auto min-h-0 flex-1">
                   {sections.map((section, sIdx) => (
@@ -673,7 +664,6 @@ spec:
                             : "none",
                       }}
                     >
-                      {/* Section header */}
                       <button
                         onClick={() => toggleSection(section.id)}
                         className="w-full flex items-center justify-between px-4 py-3 text-left no-lightboard"
@@ -705,7 +695,6 @@ spec:
                         )}
                       </button>
 
-                      {/* Lessons — shown when expanded */}
                       <AnimatePresence initial={false}>
                         {expandedSection === section.id && (
                           <motion.div
@@ -747,7 +736,6 @@ spec:
                 </div>
               </div>
 
-              {/* Secondary — Figma Floating Answer Bubble (4851:12360, 6433:4649) */}
               <div className="flex flex-wrap gap-2 items-stretch justify-stretch">
                 <button
                   type="button"
@@ -773,7 +761,6 @@ spec:
                 </button>
               </div>
 
-              {/* Primary — compact floating CTA (same pattern as SkillTestFlow) */}
               <div className="flex justify-end">
                 <button
                   type="button"
@@ -789,14 +776,13 @@ spec:
             </div>
           )}
 
-          {/* ── Customize plan (Image 4) ── */}
+          {/* ── Customize plan ── */}
           {phase === "customize" && (
             <div className="flex flex-col gap-3">
               <div
                 className="overflow-y-auto flex flex-col gap-3"
                 style={{ maxHeight: "50vh" }}
               >
-                {/* Preferred Format — Figma 4851:12893: flex-wrap 8px gap; chips px-16 py-8, nowrap */}
                 <div className="rounded-2xl px-4 pt-4 pb-3 glass-surface">
                   <p className="text-[var(--text-primary)] font-bold text-base mb-2">
                     Preferred Format
@@ -829,7 +815,6 @@ spec:
                   </div>
                 </div>
 
-                {/* Additional Topics */}
                 <div className="rounded-2xl p-4 glass-surface">
                   <p className="text-[var(--text-primary)] font-bold text-base mb-3">
                     Additional Topics
@@ -883,7 +868,6 @@ spec:
                 </div>
               </div>
 
-              {/* Go back / Update my plan — Figma 4851:12957 + secondary bubble style */}
               <div className="flex flex-wrap gap-2 items-stretch">
                 <button
                   type="button"
@@ -910,14 +894,12 @@ spec:
             </div>
           )}
 
-          {/* ── Results (After Learning Completion) ──────────────────────── */}
+          {/* ── Results (After Learning Completion) ── */}
           {phase === "results" && (
             <div className="flex flex-col gap-3">
-              {/* Kubernetes at Beginner level */}
               <div className="rounded-2xl glass-surface p-4 flex flex-col gap-2">
                 <h3 className="text-[#f4f4f5] text-base font-bold leading-6">Kubernetes</h3>
                 
-                {/* 5-segment level meter - now showing 2 filled */}
                 <div className="relative h-1.5 w-full">
                   <div className="absolute bg-[#3689ff] h-1.5 left-0 rounded-full top-0 w-[73px]" />
                   <div className="absolute bg-[#3689ff] border border-[#3689ff] h-1.5 left-[75px] rounded-full top-0 w-[73px]" />
@@ -929,7 +911,6 @@ spec:
                 <span className="text-[#1dc558] text-sm leading-4 font-semibold">Beginner</span>
               </div>
 
-              {/* Score gauges */}
               <div className="rounded-2xl glass-surface p-2 flex items-center justify-between gap-6">
                 <div className="flex flex-col items-center gap-3 flex-1">
                   <CircularGauge percentage={gaugeScores.skillCoverage} size={105} />

@@ -1,7 +1,8 @@
+'use client';
 import { useMemo } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence } from "motion/react";
 import { ArrowRight } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/platform/utils";
 import { useBubbleLayout } from "@/hooks/useBubbleLayout";
 
 export interface BubbleOption {
@@ -26,7 +27,12 @@ export function FloatingAnswerBubbles({
   disabled = false,
   verticalZone,
 }: FloatingAnswerBubblesProps) {
-  const labels = useMemo(() => options.map((o) => o.label), [options]);
+  // Filter out any malformed entries (agent may send undefined/null bubble objects)
+  const safeOptions = useMemo(
+    () => options.filter((o) => o != null && typeof o.label === "string" && o.label.trim() !== ""),
+    [options],
+  );
+  const labels = useMemo(() => safeOptions.map((o) => o.label), [safeOptions]);
 
   const { containerRef, setBubbleRef, positions, ready } = useBubbleLayout({
     labels,
@@ -36,12 +42,10 @@ export function FloatingAnswerBubbles({
   const originX = window.innerWidth / 2;
   const originY = window.innerHeight;
 
- 
-
   return (
     <div ref={containerRef} data-testid="floating-answer-bubbles" className="absolute inset-0">
       <AnimatePresence>
-        {options.map((option, i) => {
+        {safeOptions.map((option, i) => {
           const [leftPx, topPx] = positions[i] ?? [0, 0];
           const isHighlighted =
             highlightedText != null &&

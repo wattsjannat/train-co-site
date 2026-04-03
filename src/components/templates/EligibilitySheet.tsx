@@ -1,8 +1,9 @@
+'use client';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { ArrowRight, CheckCircle2, ChevronDown, Circle, X } from "lucide-react";
 import { FitScoreBadge } from "@/components/ui/FitScoreBadge";
-import { informTele, notifyTele, popJobBrowseScreen } from "@/utils/teleUtils";
+import { informTele, notifyTele, popJobBrowseScreen, teleAcknowledge } from "@/utils/teleUtils";
 import { navigateBackToBrowseScreen } from "@/utils/clientDashboardNavigate";
 import {
   eligibilityByJob,
@@ -14,7 +15,7 @@ import { getSavedJobById, SAVED_JOBS_MOCK } from "@/mocks/savedJobsData";
 import { categorizeFit, getFitInfo, type FitCategory } from "@/utils/categorizeFit";
 import { deriveSkillMatches } from "@/utils/jobInsights";
 import type { SkillMatch, SkillRef, SkillGapRef } from "@/utils/jobInsights";
-import { useSpeechFallbackNudge } from "@/hooks/useSpeechFallbackNudge";
+
 import { useTeleSpeech } from "@/hooks/useTeleSpeech";
 import { useVoiceActions } from "@/hooks/useVoiceActions";
 
@@ -230,48 +231,49 @@ export function EligibilitySheet({
   const isGoodFit = fitCategory === "good-fit";
   const fitInfo = getFitInfo(fitCategory);
 
+  useEffect(() => {
+    void informTele(
+      "[SYSTEM] While EligibilitySheet is visible the following voice inputs are LOCAL UI ACCORDION ACTIONS — " +
+        "do NOT explain the section or say it is unavailable. Respond with only 'Sure.' or stay silent: " +
+        "'expand/toggle/open skills' or 'expand/toggle/open skill alignment' → opens Skill Alignment. " +
+        "'collapse/close skills' or 'collapse/close skill alignment' → closes Skill Alignment. " +
+        "'expand/toggle/open experience' or 'expand/toggle/open relevant experience' → opens Relevant Experience. " +
+        "'collapse/close experience' or 'collapse/close relevant experience' → closes Relevant Experience. " +
+        "'expand/toggle/open certifications' → opens Certifications. " +
+        "'collapse/close certifications' → closes Certifications.",
+    );
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const eligInsightSentRef = useRef(false);
   useEffect(() => {
     if (eligInsightSentRef.current) return;
     eligInsightSentRef.current = true;
+
     const metSkills = skillMatches.filter((s) => s.status === "have");
     const gapSkills = skillMatches.filter((s) => s.status === "missing");
-    const workingOn = skillMatches.filter((s) => s.status === "working-on");
-    const fitLabel = { "good-fit": "Good Fit", "stretch": "Stretch", "grow-into": "Grow Into" }[fitCategory] ?? fitCategory;
-    const parts: string[] = [
-      `[SYSTEM] EligibilitySheet is now visible for "${jobTitle}" at ${company}.`,
-      `Overall match: ${matchScore}% (${fitLabel}).`,
-    ];
-    if (skillMatches.length > 0) {
-      parts.push(
-        `Skills: ${metSkills.length} met, ${workingOn.length} in progress, ${gapSkills.length} missing out of ${skillMatches.length} required.`,
-      );
-      if (metSkills.length > 0)
-        parts.push(`Strengths: ${metSkills.slice(0, 3).map((s) => s.name).join(", ")}.`);
-      if (gapSkills.length > 0)
-        parts.push(`Gaps to close: ${gapSkills.slice(0, 3).map((s) => s.name).join(", ")}.`);
-    }
-    parts.push(
-      "Describe the candidate's eligibility with specific insights: start with their overall fit, highlight their key strengths, " +
-      "name 1–2 gaps they need to close, and suggest the logical next step (apply if strong fit, close the gap if stretch/grow-into). " +
-      "Keep it to 2–3 sentences.",
-    );
-    informTele(parts.join(" "));
-  }, [jobTitle, company, matchScore, fitCategory, skillMatches]);
+    const fitLabel = { "good-fit": "Good Fit", stretch: "Stretch", "grow-into": "Grow Into" }[fitCategory] ?? fitCategory;
 
-  useSpeechFallbackNudge({
-    enabled: true,
-    requiredPhrases: ["eligib"],
-    matchMode: "any",
-    instruction:
-      `[SYSTEM] EligibilitySheet is visible for "${jobTitle}" at ${company}. ` +
-      `Match: ${matchScore}% (${fitCategory}). ` +
-      (skillMatches.length > 0
-        ? `${skillMatches.filter((s) => s.status === "have").length} skills met, ${skillMatches.filter((s) => s.status === "missing").length} gaps. `
-        : "") +
-      "Describe the candidate's eligibility with key strengths and gaps, then suggest the best next step (apply or close the gap).",
-    delayMs: 1400,
-  });
+    const strengthsStr =
+      metSkills.length > 0
+        ? `Their top strengths are ${metSkills.slice(0, 3).map((s) => s.name).join(", ")}.`
+        : "";
+    const gapsStr =
+      gapSkills.length > 0
+        ? `They still need to close gaps in ${gapSkills.slice(0, 2).map((s) => s.name).join(" and ")}.`
+        : "";
+    const nextStep =
+      fitCategory === "good-fit"
+        ? "Recommend they apply now."
+        : "Recommend they close the gap first before applying.";
+
+    const instruction =
+      `[SYSTEM] Say this eligibility insight aloud now: ` +
+      `"You're a ${fitLabel} match for ${jobTitle} at ${company} with a ${matchScore}% fit score. ` +
+      `${strengthsStr} ${gapsStr} ${nextStep}"`;
+
+    const t = setTimeout(() => teleAcknowledge(instruction, { visible: false }), 1500);
+    return () => clearTimeout(t);
+  }, [jobTitle, company, matchScore, fitCategory, skillMatches]);
 
   const handleApply = useCallback(() => void notifyTele("user clicked: Apply Now"), []);
 
@@ -286,10 +288,37 @@ export function EligibilitySheet({
     );
   }, [savedJob]);
 
+  // Tap handlers
+  const handleOpenSkills = useCallback(() => setOpenSkill(true), []);
+  const handleCloseSkills = useCallback(() => setOpenSkill(false), []);
+  const handleOpenExp = useCallback(() => setOpenExp(true), []);
+  const handleCloseExp = useCallback(() => setOpenExp(false), []);
+  const handleOpenCert = useCallback(() => setOpenCert(true), []);
+  const handleCloseCert = useCallback(() => setOpenCert(false), []);
+
+  useEffect(() => {
+    const handleAccordionVoice = (e: Event) => {
+      const raw = (e as CustomEvent<{ transcript?: string }>).detail?.transcript ?? "";
+      const t = raw.toLowerCase().replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
+      if (!t) return;
+
+      const isOpen = /^(?:expand|toggle|open)/.test(t);
+      const isClose = /^(?:collapse|close)/.test(t);
+      if (!isOpen && !isClose) return;
+
+      if (/skill/.test(t))       { isOpen ? setOpenSkill(true) : setOpenSkill(false); return; }
+      if (/experience/.test(t))  { isOpen ? setOpenExp(true)   : setOpenExp(false);   return; }
+      if (/certif/.test(t))      { isOpen ? setOpenCert(true)  : setOpenCert(false);  return; }
+    };
+
+    window.addEventListener("userTranscriptCompleted", handleAccordionVoice);
+    return () => window.removeEventListener("userTranscriptCompleted", handleAccordionVoice);
+  }, []);
+
   useVoiceActions(
     useMemo(
       () => [
-        { phrases: ["go back", "back", "close"], action: handleClose },
+        { phrases: ["go back", "back"], action: handleClose },
         { phrases: ["apply now", "apply"], action: handleApply },
         { phrases: ["close the gap", "close gap"], action: handleCloseGap },
       ],
@@ -336,12 +365,13 @@ export function EligibilitySheet({
       <div className="flex-1 min-h-0 w-full pointer-events-none" aria-hidden />
 
       {/* pointer-events-none on wrapper: only scroll + card capture touches; bottom padding on root lets nav/mic receive taps */}
-      <div className="shrink-0 w-full flex flex-col pointer-events-none bg-transparent overflow-visible max-h-[min(92vh,100%)]">
+      <div className="shrink-0 w-full flex flex-col pointer-events-none bg-transparent overflow-hidden max-h-[min(92vh,100%)]">
         <div
           ref={sheetScrollRef}
-          className="pointer-events-auto h-[min(44vh,calc(100vh-8rem))] min-h-[168px] overflow-y-auto overflow-x-hidden px-5 pt-2 bg-transparent"
+          className="pointer-events-auto max-h-[min(52vh,calc(100vh-7rem))] min-h-[168px] overflow-y-auto overflow-x-hidden px-5 pt-2 pb-1 bg-transparent"
+          style={{ WebkitOverflowScrolling: "touch" }}
         >
-          <div className="min-h-full flex flex-col justify-end pb-2">
+          <div className="flex flex-col pb-2">
             <div className="max-w-lg mx-auto w-full flex flex-col gap-4">
           <div
             className="rounded-[28px] p-5 border border-white/[0.18] bg-white/[0.07] backdrop-blur-2xl shadow-[0_12px_40px_rgba(0,0,0,0.35)] ring-1 ring-white/[0.06]"

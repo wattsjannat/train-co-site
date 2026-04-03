@@ -1,11 +1,9 @@
+'use client';
+
 import { useCallback, useRef } from "react";
 import { useVoiceTranscriptIntent } from "@/hooks/useVoiceTranscriptIntent";
-import {
-  scoreMatch,
-  normalizeVoiceText,
-  VOICE_MIN_SCORE,
-  VOICE_MIN_MARGIN,
-} from "@/utils/voiceMatch";
+import { useBrowserSpeech } from "@/hooks/useBrowserSpeech";
+import { scoreMatch, normalizeVoiceText, VOICE_MIN_SCORE, VOICE_MIN_MARGIN } from "@/utils/voiceMatch";
 
 export interface VoiceAction {
   phrases: string[];
@@ -14,20 +12,7 @@ export interface VoiceAction {
 
 const COOLDOWN_MS = 2000;
 
-/**
- * Listens to voice transcripts and fires the best-matching action.
- *
- * Each VoiceAction carries an array of trigger phrases (e.g. ["apply now", "apply"])
- * and a callback. The hook scores every incoming transcript against all phrases
- * using the same fuzzy engine as GlassmorphicOptions, and fires the winning action
- * when it clears the score and margin thresholds.
- *
- * A 2 s cooldown prevents double-fires from near-duplicate transcription events.
- */
-export function useVoiceActions(
-  actions: VoiceAction[],
-  enabled = true,
-): void {
+export function useVoiceActions(actions: VoiceAction[], enabled = true): void {
   const lastFiredRef = useRef<number>(0);
 
   const onTranscript = useCallback(
@@ -61,4 +46,6 @@ export function useVoiceActions(
   );
 
   useVoiceTranscriptIntent({ enabled, onTranscript });
+  /** Same phrase matching as LiveKit — local Web Speech when Realtime is muted or unavailable. */
+  useBrowserSpeech({ enabled, onTranscript });
 }

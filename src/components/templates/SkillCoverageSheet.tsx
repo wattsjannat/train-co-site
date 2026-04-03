@@ -1,3 +1,4 @@
+'use client';
 import { useMemo, useState } from "react";
 import { Maximize2, TrendingUp, Sparkles, Target } from "lucide-react";
 import { CircularGauge } from "@/components/charts/CircularGauge";
@@ -387,5 +388,4 @@ export function SkillCoverageSheet({
     </>
   );
 }
-
 

@@ -1,3 +1,8 @@
+/**
+ * teleIntent — selection/intent helpers for templates.
+ * Adapted from trainco-v1.
+ */
+
 import { notifyTele, teleAcknowledge, type NotifyTeleOptions } from "@/utils/teleUtils";
 
 export function getLinkedInPlaceholderEmail(): string {
@@ -5,14 +10,9 @@ export function getLinkedInPlaceholderEmail(): string {
 }
 
 export type SendLinkedInContinueOptions = {
-  /**
-   * Voice path: interrupt-steer so Realtime does not treat natural speech as
-   * email signup and call `register_candidate` instead of `find_candidate`.
-   */
   steerModel?: boolean;
 };
 
-/** When set (e.g. Saved Jobs bubble tap), TellTele includes jobId so the agent opens JobDetailSheet / Eligibility without asking “which job?”. */
 export type SelectionIntentJobContext = {
   jobId: string;
   title: string;
@@ -45,11 +45,11 @@ export function sendLinkedInContinueIntent(
   options?: SendLinkedInContinueOptions,
 ): Promise<void> {
   if (options?.steerModel) {
-    teleAcknowledge(
+    void teleAcknowledge(
       "[SYSTEM] LinkedIn path (voice). The canonical `user clicked: Continue with LinkedIn | email: " +
         email +
         "` signal is being sent now via TellTele. Execute journey-onboarding Step 6 only: " +
-        "`find_candidate` with that email, then bridge calls. " +
+        "`find_candidate` with that email, read `data.candidate_id` / `data.id` from the result, then `get_candidate` with that non-empty `candidate_id` (sequential, not parallel). " +
         "FORBIDDEN on this path: `register_candidate`. " +
         "If you already started `register_candidate`, abandon it and use `find_candidate` only.",
       { visible: false },
@@ -82,8 +82,24 @@ export function sendLooksGoodClickedIntent(): Promise<void> {
   return notifyTele("user clicked: Looks Good");
 }
 
-export function sendJobOpenedIntent(title: string, company: string): Promise<void> {
-  return notifyTele(`user opened job: ${title} at ${company}`, { skipNavigateDrift: true });
+export type JobOpenedContext = { jobId?: string; matchScore?: number };
+
+/**
+ * Sent when a job card preview opens. Includes jobId/matchScore when known so the
+ * voice agent stays aligned with the on-screen role (not a different job from context).
+ */
+export function sendJobOpenedIntent(
+  title: string,
+  company: string,
+  ctx?: JobOpenedContext,
+): Promise<void> {
+  let msg = `user opened job: ${title} at ${company}`;
+  if (ctx?.jobId) msg += ` | jobId:${ctx.jobId}`;
+  if (ctx?.matchScore != null) msg += ` | matchScore:${ctx.matchScore}`;
+  msg +=
+    " [SYSTEM] The visible job preview matches this TellTele line exactly (title, company, jobId, matchScore). " +
+    "Your spoken response MUST describe only this role — do not mention any other job from earlier cards or tool output.";
+  return notifyTele(msg, { skipNavigateDrift: true });
 }
 
 export function sendJobClosedIntent(title: string, company: string): Promise<void> {

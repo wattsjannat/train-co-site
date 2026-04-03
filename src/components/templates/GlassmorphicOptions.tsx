@@ -1,7 +1,8 @@
+'use client';
 import { useState, useCallback, useEffect, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence } from "motion/react";
 import { FloatingAnswerBubbles } from "@/components/FloatingAnswerBubbles";
-import { MiniProgress } from "@/components/cards/MiniProgress";
+import { MiniProgress } from "@/components/MiniProgress";
 import { informTele } from "@/utils/teleUtils";
 import {
   sendInvalidOptionVoiceIntent,
@@ -10,6 +11,7 @@ import {
 import { useSpeechGate } from "@/hooks/useSpeechGate";
 import { useSpeechFallbackNudge } from "@/hooks/useSpeechFallbackNudge";
 import { useVoiceTranscriptIntent } from "@/hooks/useVoiceTranscriptIntent";
+import { useBrowserSpeech } from "@/hooks/useBrowserSpeech";
 import { resolveBestVoiceMatch } from "@/utils/voiceMatch";
 import type { BubbleOption } from "@/components/FloatingAnswerBubbles";
 
@@ -38,8 +40,9 @@ interface GlassmorphicOptionsProps {
  *   4. After 500ms, the template fades itself out (self-dismiss).
  *      The AI's next navigateToSection replaces it when ready.
  *
- * When bubbles become interactive (`ready` from useSpeechGate), we informTele once
- * so Realtime waits for `user selected:` before calling navigateToSection again.
+ * `useSpeechGate` still runs for timing / maxReadyWait; bubbles must mount without
+ * waiting on `ready` — otherwise taps never hit the DOM while voice (LiveKit STT)
+ * can still match because those hooks do not require `ready`.
  */
 export function GlassmorphicOptions({
   bubbles = [],
@@ -56,10 +59,12 @@ export function GlassmorphicOptions({
     /* Let the avatar finish the question before showing taps (was 250ms — too easy to bundle with model follow-up). */
     silenceMs: 850,
     dismissSilenceMs: 120_000,
+    /* LiveAvatar can hold agentState "speaking" for the whole line — without this, bubbles never mount. */
+    maxReadyWaitMs: 2800,
   });
 
   useEffect(() => {
-    if (!ready || dismissed || waitForSelectionHintSentRef.current) return;
+    if (dismissed || waitForSelectionHintSentRef.current) return;
     waitForSelectionHintSentRef.current = true;
     informTele(
       "[SYSTEM] GlassmorphicOptions: answer bubbles are on screen and pointer-events are enabled. " +
@@ -68,7 +73,7 @@ export function GlassmorphicOptions({
         "Until then, stay silent or give at most one short acknowledgment if the user speaks off-script — " +
         "do not ask the next interview question (e.g. industry) or narrate the next screen."
     );
-  }, [ready, dismissed]);
+  }, [dismissed]);
 
   const handleSelect = useCallback(
     (option: BubbleOption) => {
@@ -81,6 +86,30 @@ export function GlassmorphicOptions({
       setTimeout(() => setDismissed(true), 500);
     },
     [hasSelected, dismissed, setDismissed],
+  );
+
+  const onOptionVoiceTranscript = useCallback(
+    (transcript: string) => {
+      const match = resolveBestVoiceMatch(transcript, bubbles);
+      if (match) {
+        handleSelect(match);
+      } else {
+        void sendInvalidOptionVoiceIntent();
+      }
+    },
+    [bubbles, handleSelect],
+  );
+
+  // Browser STT can occasionally pick up avatar/device audio; ignore non-matches
+  // so click selection signals are not overridden by "invalid option" nudges.
+  const onOptionBrowserTranscript = useCallback(
+    (transcript: string) => {
+      const match = resolveBestVoiceMatch(transcript, bubbles);
+      if (match) {
+        handleSelect(match);
+      }
+    },
+    [bubbles, handleSelect],
   );
 
   useSpeechFallbackNudge({
@@ -101,19 +130,16 @@ export function GlassmorphicOptions({
 
   useVoiceTranscriptIntent({
     enabled: !hasSelected && !dismissed,
-    onTranscript: (transcript) => {
-      const match = resolveBestVoiceMatch(transcript, bubbles);
-      if (match) {
-        handleSelect(match);
-      } else {
-        void sendInvalidOptionVoiceIntent();
-      }
-    },
+    onTranscript: onOptionVoiceTranscript,
+  });
+  useBrowserSpeech({
+    enabled: ready && !hasSelected && !dismissed,
+    onTranscript: onOptionBrowserTranscript,
   });
 
   return (
     <AnimatePresence>
-      {!dismissed && ready && (
+      {!dismissed && (
         <motion.div
           key="glassmorphic-options"
           data-testid="glassmorphic-options"

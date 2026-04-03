@@ -1,3 +1,4 @@
+'use client';
 import { useSpeechFallbackNudge } from "@/hooks/useSpeechFallbackNudge";
 import { useTeleState } from "@/hooks/useTeleState";
 import { getVisitorSession } from "@/utils/visitorMemory";
@@ -17,8 +18,8 @@ export function WelcomeLanding() {
     requiredPhrases: ["ready", "journey", "?"],
     matchMode: "any",
     instruction:
-      "[SYSTEM] WelcomeLanding is still visible after connect. Execute Step 1 (Greeting) now: speak 'Are you ready to start your journey?' and call navigateToSection with the greeting payload.",
-    delayMs: 2800,
+      "[SYSTEM] WelcomeLanding is still visible — Step 1 was not applied. Execute Step 1 now: speak Welcome + Are you ready to start your journey? and call navigateWithKnowledgeKey key welcome_greeting (or greeting navigateToSection). HARD STOP after.",
+    delayMs: 4500,
   });
 
   return (

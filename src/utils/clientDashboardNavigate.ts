@@ -1,4 +1,5 @@
 import { informTele } from "@/utils/teleUtils";
+import { readCache } from "@/platform/mcpCacheBridge";
 
 type SiteFns = { navigateToSection?: (...args: unknown[]) => unknown };
 
@@ -57,14 +58,63 @@ export const MY_LEARNING_NAV_PAYLOAD = {
   ],
 } as const;
 
-/** Dashboard + SkillsDetail. */
+/** Dashboard + SkillsDetail (Career Path card + bubbles — full SkillCoverageSheet is a deeper step). */
 export const SKILLS_DETAIL_NAV_PAYLOAD = {
   badge: "trAIn CAREER",
   title: "Dashboard",
   subtitle: "Your skills overview",
   generativeSubsections: [
     { id: "dashboard", templateId: "Dashboard", props: {} },
-    { id: "skills-detail", templateId: "SkillsDetail", props: {} },
+    {
+      id: "skills-detail",
+      templateId: "SkillsDetail",
+      props: {
+        bubbles: [
+          { label: "View Skill Coverage", variant: "green", showArrow: true },
+          { label: "Recommend a Skill", variant: "default" },
+        ],
+      },
+    },
+  ],
+} as const;
+
+/** Dashboard + MarketRelevanceDetail (summary gauge + bubbles — full sheet from bubble tap). */
+export const MARKET_RELEVANCE_DETAIL_NAV_PAYLOAD = {
+  badge: "trAIn CAREER",
+  title: "Dashboard",
+  subtitle: "Your market relevance",
+  generativeSubsections: [
+    { id: "dashboard", templateId: "Dashboard", props: {} },
+    {
+      id: "market-relevance-detail",
+      templateId: "MarketRelevanceDetail",
+      props: {
+        bubbles: [
+          { label: "View Market Relevance", variant: "green", showArrow: true },
+          { label: "Where to Invest Your Time", variant: "default" },
+        ],
+      },
+    },
+  ],
+} as const;
+
+/** Dashboard + CareerGrowthDetail (summary gauge + bubbles — full sheet from bubble tap). */
+export const CAREER_GROWTH_DETAIL_NAV_PAYLOAD = {
+  badge: "trAIn CAREER",
+  title: "Dashboard",
+  subtitle: "Your career growth",
+  generativeSubsections: [
+    { id: "dashboard", templateId: "Dashboard", props: {} },
+    {
+      id: "career-growth-detail",
+      templateId: "CareerGrowthDetail",
+      props: {
+        bubbles: [
+          { label: "View Career Growth", variant: "green", showArrow: true },
+          { label: "Compensation Trajectory", variant: "default" },
+        ],
+      },
+    },
   ],
 } as const;
 
@@ -169,10 +219,19 @@ export function navigateClientToSavedJobsStack(): boolean {
   try {
     const out = nav(SAVED_JOBS_STACK_NAV_PAYLOAD);
     if (out === false) return false;
-    informTele(
-      "[SYSTEM] Client navigated to SavedJobsStack from profile. " +
-        "Do NOT call navigateToSection to JobApplicationsSheet or replace this view.",
-    );
+    const cacheAfterSaved = readCache();
+    if (cacheAfterSaved.jobs) {
+      informTele(
+        "[SYSTEM] Client navigated to SavedJobsStack from profile. Cache HAS job data. " +
+          "Do NOT call navigateToSection to JobApplicationsSheet or replace this view.",
+      );
+    } else {
+      informTele(
+        "[SYSTEM] Client navigated to SavedJobsStack. Job data is being fetched automatically by the SPA — " +
+          "do NOT call get_jobs_by_skills. Do NOT call navigateToSection. " +
+          "Say a short line like 'Loading your saved jobs…' and wait.",
+      );
+    }
     return true;
   } catch {
     return false;
@@ -197,11 +256,20 @@ export function navigateClientToJobSearchSheet(showSavedOnly = false): boolean {
       : JOB_SEARCH_NAV_PAYLOAD;
     const out = nav(payload);
     if (out === false) return false;
-    informTele(
-      showSavedOnly
-        ? "[SYSTEM] Client navigated to JobSearchSheet with saved-only filter active. Do NOT call navigateToSection."
-        : "[SYSTEM] Client navigated to JobSearchSheet (browse all). Do NOT call navigateToSection.",
-    );
+    const cacheAfterJobSearch = readCache();
+    if (cacheAfterJobSearch.jobs) {
+      informTele(
+        showSavedOnly
+          ? "[SYSTEM] Client navigated to JobSearchSheet (saved-only filter). Cache HAS job data. Do NOT call navigateToSection."
+          : "[SYSTEM] Client navigated to JobSearchSheet (browse all). Cache HAS job data. Do NOT call navigateToSection.",
+      );
+    } else {
+      informTele(
+        "[SYSTEM] Client navigated to JobSearchSheet. Job data is being fetched automatically by the SPA — " +
+          "do NOT call get_jobs_by_skills. Do NOT call navigateToSection. " +
+          "Say a short line like 'Searching for jobs…' and wait.",
+      );
+    }
     return true;
   } catch {
     return false;
@@ -225,21 +293,32 @@ export function navigateClientToJobApplications(): boolean {
   }
 }
 
+export type DashboardLandingOptions = { afterOnboardingCards?: boolean };
+
 /** Navigates to Dashboard landing (Dashboard + ProfileSheet with dashboardAnchor). */
-export function navigateClientToDashboardLanding(fromLearning = false): boolean {
+export function navigateClientToDashboardLanding(
+  fromLearning = false,
+  options?: DashboardLandingOptions,
+): boolean {
   const nav = getNavigateToSection();
   if (!nav) return false;
   try {
     const out = nav(DASHBOARD_LANDING_NAV_PAYLOAD);
     if (out === false) return false;
+    const afterCards = options?.afterOnboardingCards === true;
     const message = fromLearning
       ? "[SYSTEM] Client navigated to dashboard landing after completing Kubernetes learning. " +
         "The candidate now has Kubernetes at Beginner level in their profile. " +
-        "Call get_jobs_by_skills with candidate_id and limit 6 to refresh job scores with the updated skills. " +
-        "Then say: \"Your profile has been updated. Your new Kubernetes skill has improved your job matches.\" " +
+        "Job data is being refreshed automatically by the SPA — do NOT call get_jobs_by_skills. " +
+        "Say: \"Your profile has been updated. Your new Kubernetes skill has improved your job matches.\" " +
         "Do NOT call navigateToSection."
-      : "[SYSTEM] Client navigated to dashboard landing. UI restored Dashboard + ProfileSheet. " +
-        "Do NOT call navigateToSection. Acknowledge briefly if needed.";
+      : afterCards
+        ? "[SYSTEM] Client auto-opened dashboard landing after onboarding job cards were dismissed. " +
+          "UI shows Dashboard + ProfileSheet. Do NOT call navigateToSection. " +
+          "Metric data (skills, market relevance, career growth) is fetched automatically by the SPA — do NOT call those tools. " +
+          "Give the dashboard welcome lines from speak-llm."
+        : "[SYSTEM] Client navigated to dashboard landing. UI restored Dashboard + ProfileSheet. " +
+          "Do NOT call navigateToSection. Acknowledge briefly if needed.";
     informTele(message);
     return true;
   } catch {
@@ -271,10 +350,18 @@ export function navigateClientToSkillsDetail(): boolean {
   try {
     const out = nav(SKILLS_DETAIL_NAV_PAYLOAD);
     if (out === false) return false;
-    informTele(
-      "[SYSTEM] Client navigated to SkillsDetail. UI is showing the skills overview. " +
-        "Do NOT call navigateToSection.",
-    );
+    const cacheAfterSkills = readCache();
+    if (cacheAfterSkills.skills) {
+      informTele(
+        "[SYSTEM] Client navigated to SkillsDetail. Cache HAS skill data. Do NOT call navigateToSection.",
+      );
+    } else {
+      informTele(
+        "[SYSTEM] Client navigated to SkillsDetail. Skill data is being fetched automatically by the SPA — " +
+          "do NOT call get_skill_progression. Do NOT call navigateToSection. " +
+          "Say a short line like 'Loading your skill profile…' and wait.",
+      );
+    }
     return true;
   } catch {
     return false;
@@ -288,10 +375,68 @@ export function navigateClientToSkillCoverage(): boolean {
   try {
     const out = nav(SKILL_COVERAGE_NAV_PAYLOAD);
     if (out === false) return false;
-    informTele(
-      "[SYSTEM] Client navigated to SkillCoverageSheet. UI is showing the full skill coverage. " +
-        "Do NOT call navigateToSection.",
-    );
+    const cacheAfterCoverage = readCache();
+    if (cacheAfterCoverage.skills) {
+      informTele(
+        "[SYSTEM] Client navigated to SkillCoverageSheet. Cache HAS skill data. Do NOT call navigateToSection.",
+      );
+    } else {
+      informTele(
+        "[SYSTEM] Client navigated to SkillCoverageSheet. Skill data is being fetched automatically by the SPA — " +
+          "do NOT call get_skill_progression. Do NOT call navigateToSection. " +
+          "Say a short line like 'Loading your skills…' and wait.",
+      );
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Navigates to MarketRelevanceDetail (Dashboard + summary card). */
+export function navigateClientToMarketRelevanceDetail(): boolean {
+  const nav = getNavigateToSection();
+  if (!nav) return false;
+  try {
+    const out = nav(MARKET_RELEVANCE_DETAIL_NAV_PAYLOAD);
+    if (out === false) return false;
+    const cacheAfterMR = readCache();
+    if (cacheAfterMR.marketRelevance) {
+      informTele(
+        "[SYSTEM] Client navigated to MarketRelevanceDetail. Cache HAS market relevance data. Do NOT call navigateToSection.",
+      );
+    } else {
+      informTele(
+        "[SYSTEM] Client navigated to MarketRelevanceDetail. Market relevance data is being fetched automatically by the SPA — " +
+          "do NOT call get_market_relevance. Do NOT call navigateToSection. " +
+          "Say a short line like 'Loading your market relevance…' and wait.",
+      );
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Navigates to CareerGrowthDetail (Dashboard + summary card). */
+export function navigateClientToCareerGrowthDetail(): boolean {
+  const nav = getNavigateToSection();
+  if (!nav) return false;
+  try {
+    const out = nav(CAREER_GROWTH_DETAIL_NAV_PAYLOAD);
+    if (out === false) return false;
+    const cacheAfterCG = readCache();
+    if (cacheAfterCG.careerGrowth) {
+      informTele(
+        "[SYSTEM] Client navigated to CareerGrowthDetail. Cache HAS career growth data. Do NOT call navigateToSection.",
+      );
+    } else {
+      informTele(
+        "[SYSTEM] Client navigated to CareerGrowthDetail. Career growth data is being fetched automatically by the SPA — " +
+          "do NOT call get_career_growth. Do NOT call navigateToSection. " +
+          "Say a short line like 'Loading your career growth…' and wait.",
+      );
+    }
     return true;
   } catch {
     return false;
@@ -337,6 +482,34 @@ export function navigateClientToMarketRelevanceSheet(): boolean {
     if (out === false) return false;
     informTele(
       "[SYSTEM] Client navigated to MarketRelevanceSheet. UI is showing the full market relevance breakdown. " +
+        "Do NOT call navigateToSection.",
+    );
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Dashboard + CareerGrowthSheet (full breakdown from CareerGrowthDetail). */
+export const CAREER_GROWTH_SHEET_NAV_PAYLOAD = {
+  badge: "trAIn CAREER",
+  title: "Dashboard",
+  subtitle: "Full career growth",
+  generativeSubsections: [
+    { id: "dashboard", templateId: "Dashboard", props: {} },
+    { id: "career-growth-sheet", templateId: "CareerGrowthSheet", props: {} },
+  ],
+} as const;
+
+/** Navigates to CareerGrowthSheet (Dashboard + CareerGrowthSheet). */
+export function navigateClientToCareerGrowthSheet(): boolean {
+  const nav = getNavigateToSection();
+  if (!nav) return false;
+  try {
+    const out = nav(CAREER_GROWTH_SHEET_NAV_PAYLOAD);
+    if (out === false) return false;
+    informTele(
+      "[SYSTEM] Client navigated to CareerGrowthSheet. UI is showing the full career growth breakdown. " +
         "Do NOT call navigateToSection.",
     );
     return true;

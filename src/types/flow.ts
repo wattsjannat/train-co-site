@@ -12,23 +12,35 @@ export interface BackendSkillGap {
   current_level: string | null;
 }
 
+export type FitCategory = "good-fit" | "stretch" | "grow-into";
+
 /** Raw job item as returned by the `get_jobs_by_skills` MCP tool. */
 export interface BackendJobItem {
   job: {
     id?: string;
     title?: string;
     company?: string;
+    company_name?: string;
+    company_logo?: string;
     location?: string;
     salary_range?: string;
+    salary_min?: number;
+    salary_max?: number;
     description?: string;
+    summary?: string;
+    ai_summary?: string;
+    posted_at?: string;
+    application_url?: string;
+    match_score?: number;
+    score?: number;
     required_skills?: { name: string; level?: string }[];
   };
   match_score?: number;
   score?: number;
+  fit_category?: FitCategory;
+  fitCategory?: FitCategory;
   skill_gaps?: BackendSkillGap[];
 }
-
-export type FitCategory = "good-fit" | "stretch" | "grow-into";
 
 export interface JobListing {
   id: string;
@@ -46,11 +58,9 @@ export interface JobListing {
   aiSummary?: string;
   aiGapInsight?: string;
   skillGaps?: string[];
-  /** Long-form summary for full posting view (e.g. Profile → Saved Jobs). */
   fullPostingSummary?: string;
   dayInLifeVideoTitle?: string;
   dayInLifeVideoDuration?: string;
-  /** e.g. "EPISODE 6" overlay on the day-in-the-life block */
   dayInLifeVideoEpisode?: string;
 }
 

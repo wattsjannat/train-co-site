@@ -1,5 +1,4 @@
 import type { FitCategory } from "@/utils/categorizeFit";
-import type { CourseRecommendation } from "@/mocks/courseData";
 import { capitalize, levelLabel } from "@/utils/text";
 
 // ---------------------------------------------------------------------------
@@ -25,9 +24,7 @@ export interface SkillMatch {
   status: SkillMatchStatus;
   progress?: number;
   estimatedCompletion?: string;
-  /** UI badge next to the skill name (e.g. Beginner / Intermediate). */
   proficiencyLabel?: string;
-  /** Default from status; use `warning` for hollow icon / gap styling. */
   iconTone?: "success" | "warning";
 }
 
@@ -57,7 +54,7 @@ function listJoin(items: string[], max = 3): string {
 }
 
 // ---------------------------------------------------------------------------
-// AI Summary & Gap Insight (was generateJobInsights.ts)
+// AI Summary & Gap Insight
 // ---------------------------------------------------------------------------
 
 export function generateAiSummary(
@@ -114,15 +111,9 @@ export function generateAiGapInsight(
 }
 
 // ---------------------------------------------------------------------------
-// Skill Matches & Career Impact (was deriveEligibility.ts)
+// Skill Matches & Career Impact
 // ---------------------------------------------------------------------------
 
-/**
- * Derives SkillMatch entries from the backend's required/recommended skills
- * and skill_gaps arrays. Skills not in the gap list are marked "have";
- * skills in the gap with a current_level are "working-on"; gaps with no
- * current_level are "missing".
- */
 export function deriveSkillMatches(
   requiredSkills: SkillRef[],
   recommendedSkills: SkillRef[],
@@ -200,8 +191,18 @@ export function deriveCareerImpact(
 }
 
 // ---------------------------------------------------------------------------
-// Placeholder Courses (was deriveCourses.ts)
+// Placeholder Courses
 // ---------------------------------------------------------------------------
+
+export interface CourseRecommendation {
+  id: string;
+  name: string;
+  provider: string;
+  description: string;
+  priority: boolean;
+  savedRoleCount: number;
+  duration: string;
+}
 
 const PROVIDERS = ["Coursera", "Udemy", "LinkedIn Learning", "edX", "Pluralsight"];
 
@@ -210,11 +211,6 @@ function estimateDuration(gap: SkillGapRef): string {
   return "2\u20134 weeks";
 }
 
-/**
- * Generates placeholder course recommendations from skill gap data.
- * Each gap becomes a training course. The first gap (highest priority) also
- * produces a featured course entry.
- */
 export function derivePlaceholderCourses(skillGaps: SkillGapRef[]): {
   gapCourses: (CourseRecommendation & {
     progress?: number;

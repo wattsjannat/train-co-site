@@ -1,6 +1,7 @@
+'use client';
 import { useMemo, useState, useCallback, useRef, useEffect } from "react";
 import { Brain, Cloud, Blocks, Zap, X, ArrowRight } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence } from "motion/react";
 import { CircularGauge } from "@/components/charts/CircularGauge";
 import type { BubbleOption } from "@/components/FloatingAnswerBubbles";
 import { sendSelectionIntent } from "@/utils/teleIntent";
@@ -8,14 +9,16 @@ import { informTele } from "@/utils/teleUtils";
 import { BottomSheet } from "@/components/ui/BottomSheet";
 import { useVoiceActions } from "@/hooks/useVoiceActions";
 import { useMcpCache } from "@/contexts/McpCacheContext";
-import { extractGaugeScores } from "@/utils/computeProfileMetrics";
+import { extractGaugeScores, extractMarketRelevancePercent } from "@/utils/computeProfileMetrics";
 import { useVoiceTranscriptIntent } from "@/hooks/useVoiceTranscriptIntent";
+import { useBrowserSpeech } from "@/hooks/useBrowserSpeech";
+import { useSpeechFallbackNudge } from "@/hooks/useSpeechFallbackNudge";
 import { normalizeVoiceText } from "@/utils/voiceMatch";
 import {
   navigateClientToDashboardLanding,
   navigateClientToMarketRelevanceSheet,
 } from "@/utils/clientDashboardNavigate";
-import { cn } from "@/lib/utils";
+import { cn } from "@/platform/utils";
 
 interface MarketRelevanceDetailProps {
   rawMarketRelevance?: Record<string, unknown>;
@@ -96,7 +99,13 @@ export function MarketRelevanceDetail({ rawMarketRelevance, bubbles: bubblesRaw,
   const data = useMemo(() => unwrap(resolved), [resolved]);
 
   const gaugeScores = useMemo(() => extractGaugeScores(cache.skills), [cache.skills]);
-  const score = gaugeScores.marketRelevance ?? (data?.overall_score as number) ?? 0;
+  // Match ProfileSheet / MarketRelevanceSheet: dedicated tool `overall_score` first — not
+  // gaugeScores.marketRelevance (skill_map benchmark ~70), which caused detail gauge ≠ profile.
+  const score =
+    extractMarketRelevancePercent(resolved) ??
+    (data?.overall_score as number) ??
+    gaugeScores.marketRelevance ??
+    0;
   const insight = data?.key_insight as { headline?: string; body?: string } | undefined;
   const investments = (data?.investment_opportunities as InvestmentOpp[]) ?? [];
 
@@ -185,6 +194,24 @@ export function MarketRelevanceDetail({ rawMarketRelevance, bubbles: bubblesRaw,
   );
 
   useVoiceTranscriptIntent({ onTranscript: onVoiceBubbleTranscript });
+  useBrowserSpeech({ onTranscript: onVoiceBubbleTranscript });
+
+  useSpeechFallbackNudge({
+    enabled: bubbleOptions.length > 0 || activeWidget === 2,
+    requiredPhrases: activeWidget === 1 
+      ? ["market", "relevance", "tips"]
+      : ["invest", "time", "recommend"],
+    matchMode: "any",
+    instruction:
+      activeWidget === 1
+        ? `[SYSTEM] MarketRelevanceDetail Widget 1 is visible with ${bubbleOptions.length} bubble options. ` +
+          `Speak: "Your current market relevance is ${score >= 75 ? "excellent" : score >= 60 ? "good" : score >= 40 ? "fair" : "needs improvement"} at ${score}%. Here's some tips on how to bring it up." ` +
+          "Then wait for user to select a bubble option."
+        : `[SYSTEM] MarketRelevanceDetail Widget 2 is visible showing investment opportunities. ` +
+          "Speak: \"Here's where I recommend investing your time.\" " +
+          "Then wait for user to select 'View Market Relevance'.",
+    delayMs: 1500,
+  });
 
   // Handle agent-triggered widget changes via _triggerWidget prop
   useEffect(() => {

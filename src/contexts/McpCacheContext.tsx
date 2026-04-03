@@ -1,63 +1,77 @@
+'use client';
+
+import { createContext, useContext, useState, useCallback, useEffect, useRef, type ReactNode } from "react";
 import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useRef,
-  useState,
-  type ReactNode,
-} from "react";
-import {
-  type McpCache,
-  EMPTY_CACHE,
   registerCacheAccessors,
   unregisterCacheAccessors,
-} from "@/lib/mcpCacheBridge";
+  type McpCache,
+  EMPTY_CACHE,
+} from "@/platform/mcpCacheBridge";
 
-const McpCacheContext = createContext<McpCache>(EMPTY_CACHE);
+interface McpCacheContextValue {
+  cache: McpCache;
+  loadIntoCache: (key: keyof McpCache, value: unknown) => void;
+  readCache: () => McpCache;
+  resetCache: () => void;
+}
+
+const McpCacheContext = createContext<McpCacheContextValue>({
+  cache: EMPTY_CACHE,
+  loadIntoCache: () => {},
+  readCache: () => EMPTY_CACHE,
+  resetCache: () => {},
+});
 
 export function McpCacheProvider({ children }: { children: ReactNode }) {
   const [cache, setCache] = useState<McpCache>(EMPTY_CACHE);
-  const cacheRef = useRef<McpCache>(cache);
-  cacheRef.current = cache;
+  const cacheRef = useRef<McpCache>(EMPTY_CACHE);
 
-  const handleSet = useCallback((key: keyof McpCache, data: unknown) => {
-    cacheRef.current = { ...cacheRef.current, [key]: data };
-    setCache((prev) => ({ ...prev, [key]: data }));
+  const loadIntoCache = useCallback((key: keyof McpCache, value: unknown) => {
+    setCache((prev) => {
+      const next = { ...prev, [key]: value };
+      cacheRef.current = next;
+      return next;
+    });
   }, []);
 
-  const handleGet = useCallback((): McpCache => cacheRef.current, []);
+  const readCache = useCallback(() => cacheRef.current, []);
+
+  const resetCache = useCallback(() => {
+    setCache(EMPTY_CACHE);
+    cacheRef.current = EMPTY_CACHE;
+  }, []);
 
   useEffect(() => {
-    registerCacheAccessors(handleSet, handleGet);
-    return () => unregisterCacheAccessors();
-  }, [handleSet, handleGet]);
+    registerCacheAccessors(loadIntoCache, readCache);
+    return () => { unregisterCacheAccessors(); };
+  }, [loadIntoCache, readCache]);
 
-  // Only reset cache on a real disconnect (was connected → now disconnected).
-  // BottomNav dispatches connected:false during the "connecting" phase too,
-  // which would wipe pre-fetched candidate data before tele is even up.
-  const wasConnectedRef = useRef(false);
+  // Reset cache on real disconnect
   useEffect(() => {
-    const handler = (e: Event) => {
-      const connected = (e as CustomEvent<{ connected: boolean }>).detail
-        .connected;
-      if (!connected && wasConnectedRef.current) {
-        setCache(EMPTY_CACHE);
+    let wasConnected = false;
+    const onConnectionChange = (e: Event) => {
+      const connected = (e as CustomEvent<{ connected: boolean }>).detail.connected;
+      if (!connected && wasConnected) {
+        resetCache();
       }
-      wasConnectedRef.current = connected;
+      wasConnected = connected;
     };
-    window.addEventListener("tele-connection-changed", handler);
-    return () =>
-      window.removeEventListener("tele-connection-changed", handler);
-  }, []);
+    window.addEventListener("tele-connection-changed", onConnectionChange);
+    return () => window.removeEventListener("tele-connection-changed", onConnectionChange);
+  }, [resetCache]);
 
   return (
-    <McpCacheContext.Provider value={cache}>
+    <McpCacheContext.Provider value={{ cache, loadIntoCache, readCache, resetCache }}>
       {children}
     </McpCacheContext.Provider>
   );
 }
 
 export function useMcpCache(): McpCache {
-  return useContext(McpCacheContext);
+  return useContext(McpCacheContext).cache;
+}
+
+export function useMcpCacheActions() {
+  const { loadIntoCache, readCache, resetCache } = useContext(McpCacheContext);
+  return { loadIntoCache, readCache, resetCache };
 }

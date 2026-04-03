@@ -1,6 +1,7 @@
+'use client';
 import { useState, useRef, useCallback, useMemo, useEffect, Suspense } from "react";
-import { motion, useMotionValue, useTransform, animate, AnimatePresence } from "framer-motion";
-import { GlassmorphicJobCard } from "../cards/GlassmorphicJobCard";
+import { motion, useMotionValue, useTransform, animate, AnimatePresence } from "motion/react";
+import { GlassmorphicJobCard } from "../GlassmorphicJobCard";
 
 import type { JobListing } from "@/types/flow";
 import { TEMPLATE_REGISTRY } from "@/data/templateRegistry";
@@ -22,13 +23,13 @@ interface CardStackProps {
   /** Called when the top card (front of stack) changes — e.g. Saved Jobs actions. */
   onFrontJobChange?: (job: JobListing | null) => void;
   /**
-   * When false, do not register job-title / “top card” voice intents (SavedJobsStack handles bubble phrases).
+   * When false, do not register job-title / "top card" voice intents (SavedJobsStack handles bubble phrases).
    */
   voiceActionsEnabled?: boolean;
   /** Saved Jobs: show initials instead of company logos on cards. */
   companyAvatar?: "logo" | "initials";
   /**
-   * When false, card tap does not open CardStackJobPreviewSheet — use with `onJobSelected` (e.g. Saved Jobs → same intent as “View full posting”).
+   * When false, card tap does not open CardStackJobPreviewSheet — use with `onJobSelected` (e.g. Saved Jobs → same intent as "View full posting").
    * @default true
    */
   openJobPreviewOnTap?: boolean;
@@ -36,7 +37,7 @@ interface CardStackProps {
 
 const SWIPE_THRESHOLD = 80;
 const EXIT_DISTANCE = 600;
-/** Visible card body height (padding + header + meta); keep in sync with GlassmorphicJobCard / Figma 6958:15579 */
+/** Visible card body height (padding + header + optional blurb/tags + meta); sync with GlassmorphicJobCard */
 const CARD_STACK_CARD_BODY_PX = 184;
 
 interface SwipeableCardProps {
@@ -64,12 +65,6 @@ function SwipeableCard({
   const rotate = useTransform(x, [-300, 0, 300], [-14, 0, 14]);
   const isDragging = useRef(false);
 
-  // Card chrome matches Figma Design System — Glassmorphic Job Card (node 6958:15579) in GlassmorphicJobCard.
-  // Figma stacking: front card (stackIndex=0) sits at the BOTTOM of the container
-  // so back cards' rounded tops peek above it.
-  //   stackIndex=0 (front): top = (totalCards-1)*12  e.g. 24 for 3 cards
-  //   stackIndex=1 (mid):   top = 12
-  //   stackIndex=2 (back):  top = 0   ← only top 12px visible above front card
   const topOffset = (totalCards - 1 - stackIndex) * 12;
 
   const handleDragEnd = useCallback(
@@ -95,7 +90,6 @@ function SwipeableCard({
         top: topOffset,
         left: 0,
         right: 0,
-        // Front card has the highest z-index so it covers everything below it
         zIndex: 10 - stackIndex,
         x: isTop ? x : 0,
         rotate: isTop ? rotate : 0,
@@ -146,8 +140,6 @@ export function CardStack({
   const handleSwipedOff = useCallback((_dir: "left" | "right") => {
     const next = topIndex + 1;
     setTopIndex(next);
-    // Fire once all cards have been swiped away.
-    // Keep this outside the state updater to avoid render-phase parent updates.
     if (next >= jobs.length) {
       onAllCardsSwiped?.();
     }

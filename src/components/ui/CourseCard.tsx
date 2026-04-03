@@ -1,3 +1,4 @@
+'use client';
 import { Layers, Clock, BarChart2 } from "lucide-react";
 
 export interface CourseCardProps {

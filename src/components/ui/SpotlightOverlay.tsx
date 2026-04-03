@@ -1,21 +1,9 @@
+'use client';
 import { useSpotlight } from "@/hooks/useSpotlight";
 
 const PADDING = 0;
 const RADIUS = 16;
 
-/**
- * Tutorial highlight system — three visual layers:
- *
- * 1. **Overlay** (z-45) — full-screen dark tint with a rounded SVG mask
- *    cutout so the spotlight area is not darkened.
- * 2. **Spotlight shape** (z-50) — box-shadow glow that sits in the cutout,
- *    blending softly into the surrounding overlay.
- * 3. The **active section** itself (z-60, set by `sectionGlow` in
- *    ProfileSheet) renders crisp on top of both.
- *
- * Both layers derive position from the same `rect` and jump together
- * — no CSS transitions on position so they stay in sync.
- */
 export function SpotlightOverlay({ activeId }: { activeId: string | null }) {
   const rect = useSpotlight(activeId);
 

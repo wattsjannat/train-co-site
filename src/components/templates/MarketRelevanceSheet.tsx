@@ -1,3 +1,4 @@
+'use client';
 import { useMemo } from "react";
 import { Brain, Cloud, Blocks, Zap, Flame } from "lucide-react";
 import { CircularGauge } from "@/components/charts/CircularGauge";
@@ -7,7 +8,7 @@ import { sendBackToProfileIntent } from "@/utils/teleIntent";
 import { useSpeechFallbackNudge } from "@/hooks/useSpeechFallbackNudge";
 import { useVoiceActions } from "@/hooks/useVoiceActions";
 import { useMcpCache } from "@/contexts/McpCacheContext";
-import { extractGaugeScores } from "@/utils/computeProfileMetrics";
+import { extractGaugeScores, extractMarketRelevancePercent } from "@/utils/computeProfileMetrics";
 
 interface MarketRelevanceSheetProps {
   rawMarketRelevance?: Record<string, unknown>;
@@ -74,10 +75,8 @@ export function MarketRelevanceSheet({ rawMarketRelevance }: MarketRelevanceShee
   const data = useMemo(() => unwrap(resolved), [resolved]);
 
   const gaugeScores = useMemo(() => extractGaugeScores(cache.skills), [cache.skills]);
-  // Prefer overall_score from the dedicated market relevance endpoint (73 before → 84 after learning).
-  // gaugeScores.marketRelevance reads skill_map[AI Engineering].market_avg — a constant industry
-  // benchmark (always 70) — so it must come last to avoid masking the real candidate score.
-  const score = (data?.overall_score as number) ?? gaugeScores.marketRelevance ?? 0;
+  const score =
+    extractMarketRelevancePercent(resolved) ?? (data?.overall_score as number) ?? gaugeScores.marketRelevance ?? 0;
   const delta = (data?.six_month_delta as number) ?? 0;
   const insight = data?.key_insight as { headline?: string; body?: string } | undefined;
   const trend = (data?.six_month_trend as TrendMonth[]) ?? [];

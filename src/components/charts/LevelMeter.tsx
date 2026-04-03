@@ -1,11 +1,18 @@
+'use client';
 import type React from "react";
 
 interface LevelMeterProps {
+  /** Filled segments (0–5). */
   current: number;
+  /** Target segments extend from current to target (0–5). */
   target: number;
+  /** Color variant. "green" uses accent, "blue" uses funnel-bar-blue. */
   variant?: "green" | "blue";
+  /** Segment height in px. Default 6. */
   height?: number;
+  /** Gap between segments in px. Default 2. */
   gap?: number;
+  /** Total segments. Default 5. */
   segments?: number;
 }
 
@@ -47,5 +54,3 @@ export function LevelMeter({
     </div>
   );
 }
-
-export default LevelMeter;

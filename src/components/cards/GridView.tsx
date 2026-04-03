@@ -5,23 +5,24 @@ import { resolveFooters } from '@/utils/footerResolver';
 import { informTele } from '@/utils/informTele';
 import type { CardDef } from '@/types/cards';
 import {
-    // Trainco Components
-    AvatarScreen,
-    GlassmorphicJobCard,
-    JobCard,
-    CircularGaugeCard,
-    SkillProgressCard,
-    PathTrackCard,
-    LevelMeterCard,
-    TrendLineCard,
-    SimpleProgressCard,
+    // Course & Learning (4)
+    CourseOverviewCard, CourseProgressCard, LearningPathCard, LessonCard,
+    // Content & Concepts (3)
+    ConceptCard, LessonSplitCard, ObjectivesCard,
+    // Practice & Assessment (3)
+    FlashcardCard, SkillQuizCard, SkillsAssessmentCard,
+    // Skills & Credentials (3)
+    SkillsProfileCard, CertificationsCard, StepCard,
+    // Progress & Celebration (3)
+    MilestoneCard, AchievementCard, CelebrationCard,
 } from '@/components/cards';
 
 /* ═══════════════════════════════════════════════════════════
-   GridView — Trainco Career AI Grid Template
+   GridView — Composable Grid Template (16 Card Types)
    
-   A composable grid template for displaying Trainco career
-   components including job cards, skill progress, and gauges.
+   A single template that accepts a layout code and an array
+   of card definitions. The tele fills it dynamically for any
+   training & learning context.
    ═══════════════════════════════════════════════════════════ */
 
 /* ═══ Types ═══ */
@@ -34,34 +35,49 @@ interface GridViewProps {
     onLogoClick?: () => void;
 }
 
-/* ═══ Card Renderer — 30 Card Types ═══ */
+/* ═══ Card Renderer — 16 Card Types ═══ */
 
 const CARD_MAP: Record<string, React.FC<any>> = {
-    // Trainco Components
-    'avatar-screen': AvatarScreen,
-    'glassmorphic-job': GlassmorphicJobCard,
-    'job-card': JobCard,
-    'circular-gauge': CircularGaugeCard,
-    'skill-progress': SkillProgressCard,
-    'path-track': PathTrackCard,
-    'level-meter': LevelMeterCard,
-    'trend-line': TrendLineCard,
-    'simple-progress': SimpleProgressCard,
+    // Course & Learning (4)
+    'course-overview':  CourseOverviewCard,
+    'course-progress':  CourseProgressCard,
+    'learning-path':    LearningPathCard,
+    'lesson':           LessonCard,
+    // Content & Concepts (3)
+    'concept-card':     ConceptCard,
+    'lesson-split':     LessonSplitCard,
+    'objectives':       ObjectivesCard,
+    // Practice & Assessment (3)
+    'flashcard':        FlashcardCard,
+    'skill-quiz':       SkillQuizCard,
+    'skills-assessment': SkillsAssessmentCard,
+    // Skills & Credentials (3)
+    'skills-profile':   SkillsProfileCard,
+    'certifications':   CertificationsCard,
+    'step-by-step':     StepCard,
+    // Progress & Celebration (3)
+    'milestone':        MilestoneCard,
+    'achievement':      AchievementCard,
+    'celebration':      CelebrationCard,
+    // Aliases
+    'lesson-carousel':  LessonCard,
+    'steps':            StepCard,
+    'quiz':             SkillQuizCard,
+    'skills':           SkillsProfileCard,
 };
 
 /* ═══ Card Size Tiers — flex-grow weights for row height distribution ═══ */
 
 const CARD_SIZE: Record<string, number> = {
-    // Trainco Components
-    'avatar-screen': 3,
-    'glassmorphic-job': 2,
-    'job-card': 2,
-    'circular-gauge': 2,
-    'skill-progress': 2,
-    'path-track': 2,
-    'level-meter': 2,
-    'trend-line': 2,
-    'simple-progress': 2,
+    // md (standard) — lists, concept cards → flex-grow: 2
+    'concept-card': 2, 'lesson-split': 2, 'objectives': 2,
+    'milestone': 2, 'achievement': 2, 'celebration': 2,
+    'certifications': 2, 'step-by-step': 2, 'steps': 2,
+    // lg (expansive) — course overviews, quizzes, skill profiles → flex-grow: 3
+    'course-overview': 3, 'course-progress': 3,
+    'learning-path': 3, 'lesson': 3, 'lesson-carousel': 3,
+    'flashcard': 3, 'skill-quiz': 3, 'quiz': 3,
+    'skills-assessment': 3, 'skills-profile': 3, 'skills': 3,
 };
 
 function getRowWeight(rowCards: CardDef[]): number {

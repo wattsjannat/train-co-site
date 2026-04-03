@@ -1,5 +1,6 @@
+'use client';
 import { useState, useRef, useEffect, useCallback } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence } from "motion/react";
 import { notifyTele } from "@/utils/teleUtils";
 import { useSpeechGate } from "@/hooks/useSpeechGate";
 
@@ -10,34 +11,37 @@ interface TextInputProps {
 
 /**
  * Floating text-input pill that pops up at the bottom of the screen.
- *
- * Respects the speech gate (waits for avatar silence) before appearing,
- * then auto-focuses to trigger the native keyboard on mobile.
- * On submit (tap arrow or press Enter), sends: "user typed: <value>"
- * and self-dismisses.
+ * Auto-focuses on mount so the keyboard opens on mobile. On submit (arrow / Enter),
+ * sends `user typed: <value>` and self-dismisses.
  */
 export function TextInput({ placeholder = "Type your answer" }: TextInputProps) {
   const [value, setValue] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const { ready, dismissed, setDismissed } = useSpeechGate({
+  const { dismissed, setDismissed } = useSpeechGate({
     hasInteracted: value.length > 0,
+    maxReadyWaitMs: 2800,
   });
 
-  // Auto-focus after the reveal animation to open the native keyboard
+  // Auto-focus after mount so keyboard opens on tap-first flows (same as voice — do not gate on speech `ready`).
   useEffect(() => {
-    if (ready && !dismissed) {
+    if (!dismissed) {
       const t = setTimeout(() => inputRef.current?.focus(), 120);
       return () => clearTimeout(t);
     }
-  }, [ready, dismissed]);
+  }, [dismissed]);
 
   const handleSubmit = useCallback(async () => {
     const trimmed = value.trim();
     if (!trimmed || submitted || dismissed) return;
     setSubmitted(true);
     setDismissed(true);
+    try {
+      window.dispatchEvent(new CustomEvent("text-input-submitted"));
+    } catch {
+      /* noop */
+    }
     await notifyTele(`user typed: ${trimmed}`);
   }, [value, submitted, dismissed, setDismissed]);
 
@@ -50,7 +54,7 @@ export function TextInput({ placeholder = "Type your answer" }: TextInputProps) 
 
   return (
     <AnimatePresence>
-      {!dismissed && ready && (
+      {!dismissed && (
         <motion.div
           key="text-input-overlay"
           initial={{ opacity: 0, y: 24 }}

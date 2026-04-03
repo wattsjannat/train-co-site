@@ -1,7 +1,8 @@
+'use client';
 import { useState, useMemo, useEffect } from "react";
 import { X, ChevronRight, Upload, CheckCircle2 } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
-import { completeLearning, prefetchAfterLearning } from "@/lib/mcpBridge";
+import { motion, AnimatePresence } from "motion/react";
+import { completeLearning, prefetchAfterLearning } from "@/platform/mcpBridge";
 import { notifyTele } from "@/utils/teleUtils";
 import { useSpeechFallbackNudge } from "@/hooks/useSpeechFallbackNudge";
 import { useMcpCache } from "@/contexts/McpCacheContext";
@@ -10,7 +11,7 @@ import { LevelMeter } from "@/components/charts/LevelMeter";
 import { CircularGauge } from "@/components/charts/CircularGauge";
 import { MyLearningSheet } from "./MyLearningSheet";
 import { navigateClientToDashboardLanding, navigateClientToSkillsDetail } from "@/utils/clientDashboardNavigate";
-import { getVisitorSession } from "@/utils/visitorMemory";
+import { getVisitorSession, clearLearningCompleted } from "@/utils/visitorMemory";
 
 /* ── Types ──────────────────────────────────────────────────────────────── */
 
@@ -61,11 +62,18 @@ export function SkillTestFlow({ candidateId: candidateIdProp, onBack, onClose }:
   const [showLearningPath, setShowLearningPath] = useState(false);
   const [uploadSuccess, setUploadSuccess] = useState(false);
 
+  // PROTOTYPE: Clear learning state at journey entry so each demo starts at 73% (before learning).
+  // This ensures every learning journey shows the before→after transformation (73% → 82%).
+  useEffect(() => {
+    clearLearningCompleted();
+    // Demo "before" metrics: agent should pass rawSkillProgression via navigateToSection if needed — not client invoke.
+  }, []); // Run once on mount
+
   // Pre-fetch after-learning data as soon as this screen opens.
   // completeLearning() will instant-swap from these cached snapshots.
   useEffect(() => {
     if (candidateId) void prefetchAfterLearning(candidateId);
-  }, []);  
+  }, [candidateId]);  
 
   useEffect(() => {
     if (phase === "q1") setTfSelected(null);

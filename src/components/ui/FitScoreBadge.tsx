@@ -1,3 +1,4 @@
+'use client';
 import { categorizeFit, type FitCategory } from "@/utils/categorizeFit";
 
 interface FitScoreBadgeProps {

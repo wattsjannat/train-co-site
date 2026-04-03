@@ -1,15 +1,10 @@
+'use client';
+
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Mic, MicOff, Volume2, VolumeX } from "lucide-react";
 
-const DEV_TOOLBAR_HOST = process.env.NEXT_PUBLIC_DEV_TOOLBAR_HOST as string | undefined;
-
-const IS_DEV =
-  typeof window !== "undefined" &&
-  (window.location.hostname === "localhost" ||
-    window.location.hostname === "127.0.0.1" ||
-    (!!DEV_TOOLBAR_HOST && window.location.hostname === DEV_TOOLBAR_HOST));
-
 function getFramework(): Record<string, unknown> | null {
+  if (typeof window === "undefined") return null;
   return (window as unknown as Record<string, unknown>).UIFramework as Record<string, unknown> | null;
 }
 
@@ -57,10 +52,8 @@ export function DevToolbar() {
     };
   }, [teleMuted, sweepAudioElements]);
 
-  if (!IS_DEV) return null;
-
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-2 absolute left-[-110px] bottom-0">
       <button
         onClick={handleToggleMic}
         className="w-8 h-8 rounded-full flex items-center justify-center transition-colors"

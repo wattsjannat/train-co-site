@@ -1,4 +1,5 @@
-import { motion } from "framer-motion";
+'use client';
+import { motion } from "motion/react";
 
 const LinkedInIcon = () => (
   <svg width="40" height="40" viewBox="0 0 40 40" fill="none">

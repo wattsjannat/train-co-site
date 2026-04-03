@@ -1,3 +1,4 @@
+'use client';
 interface TrendPoint {
   month: string;
   score: number;
@@ -5,11 +6,18 @@ interface TrendPoint {
 
 interface TrendLineProps {
   data: TrendPoint[];
+  /** SVG height in px. Default 60. */
   height?: number;
+  /** Stroke color. Default var(--accent). */
   color?: string;
+  /** Show month labels below the line. Default false. */
   showLabels?: boolean;
 }
 
+/**
+ * Minimal SVG sparkline for 6-month trend data.
+ * Renders a polyline with an optional gradient fill beneath it.
+ */
 export function TrendLine({
   data,
   height = 60,
@@ -74,5 +82,3 @@ export function TrendLine({
     </div>
   );
 }
-
-export default TrendLine;

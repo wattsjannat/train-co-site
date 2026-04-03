@@ -1,3 +1,4 @@
+'use client';
 import { useSpeechFallbackNudge } from "@/hooks/useSpeechFallbackNudge";
 
 /**
@@ -17,7 +18,7 @@ export function EmptyScreen() {
     instruction:
       "[SYSTEM] EmptyScreen has been visible for 2.5 s with no follow-up speech detected. " +
       "Proceed immediately to the next required step (do NOT wait for user input). " +
-      "If there is pending job data from get_jobs_by_skills, call navigateToSection with CardStack now.",
+      "Proceed immediately to the next required step (call navigateToSection with CardStack if jobs are ready).",
     delayMs: 2500,
   });
 

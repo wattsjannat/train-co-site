@@ -1,40 +1,31 @@
+'use client';
+
 import { useState, useCallback, useEffect, useRef } from "react";
 import type { GenerativeSection } from "@/types/flow";
 import { informTele, teleAcknowledge } from "@/utils/teleUtils";
 import { getVisitorSession, saveVisitorSession } from "@/utils/visitorMemory";
 import { categorizeFit } from "@/utils/categorizeFit";
+import { extractMatchScorePair } from "@/utils/scoredJobFields";
+import { pickJobDescription } from "@/utils/jobCacheLookup";
 import { generateAiSummary, generateAiGapInsight } from "@/utils/jobInsights";
 import type { SkillRef, SkillGapRef } from "@/utils/jobInsights";
-import {
-  fetchCandidate,
-  fetchJobs,
-  fetchSkills,
-  fetchCareerGrowth,
-  fetchMarketRelevance,
-  syncLearningState,
-  resolveJobsArray,
-  patchSiteFunctions,
-} from "@/lib/mcpBridge";
-import { readCache, loadIntoCache as loadIntoCacheBridge } from "@/lib/mcpCacheBridge";
+import { resolveJobsArray, patchSiteFunctions, fetchJobs, fetchSkills, fetchCareerGrowth, fetchMarketRelevance } from "@/platform/mcpBridge";
+import { readCache, loadIntoCache as loadIntoCacheBridge } from "@/platform/mcpCacheBridge";
 import { useTeleSpeech } from "@/hooks/useTeleSpeech";
 import { EVENT_NAVIGATE_POP_JOB_BROWSE } from "@/utils/teleUtils";
+import { registerSiteFunctions } from "@/site-functions/register";
+import { useVoiceSessionStore } from "@/platform/stores/voice-session-store";
+import { teleState } from "@/platform/teleState";
+import { logMcpUiStore, logMcpUiMilestone } from "@/utils/mcpUiDebug";
 
 const INITIAL_SECTIONS: GenerativeSection[] = [
   { id: "welcome", templateId: "WelcomeLanding", props: {} },
 ];
 
-/**
- * Templates that require the AI to stop and wait after navigateToSection is called.
- *
- * LoadingLinkedIn and LoadingGeneral are intentionally NOT in this set. The LLM
- * calls MCP tools (register_candidate, find_candidate, get_jobs_by_skills)
- * directly via the Mobeus console MCP connection immediately after navigating to
- * those loading screens — the loading screens are pure visual feedback while the
- * tool calls run. disableNewResponseCreation must be false so the AI can continue.
- */
 const WAIT_FOR_USER_TEMPLATES = new Set([
   "GlassmorphicOptions",
   "MultiSelectOptions",
+  "TextInput",
   "RegistrationForm",
   "CardStack",
   "SavedJobsStack",
@@ -47,11 +38,42 @@ function shouldDisableNewResponse(sections: GenerativeSection[]): boolean {
   return sections.some((s) => WAIT_FOR_USER_TEMPLATES.has(s.templateId));
 }
 
-/**
- * Stable identity for the topmost MultiSelectOptions subsection so we can reset
- * the "Continue submitted" guard when the flow advances industry → role → priority
- * (all the same templateId).
- */
+/** Suppress duplicate `call_site_function` navigate payloads within a short window (agent double-RPC). */
+const NAVIGATE_DEDUPE_MS = 1800;
+
+function navigatePayloadFingerprint(sections: GenerativeSection[]): string {
+  try {
+    return JSON.stringify(
+      sections.map((s) => {
+        const p = (s.props ?? {}) as Record<string, unknown>;
+        const upd = (s as { _update?: boolean })._update === true;
+        const base: Record<string, unknown> = {
+          id: s.id,
+          templateId: s.templateId,
+          _update: upd,
+          progressStep: p.progressStep,
+          bubbleLabels: Array.isArray(p.bubbles)
+            ? (p.bubbles as { label?: string }[]).map((b) => b.label)
+            : undefined,
+        };
+        /** CandidateSheet retries often add *Json strings in a second RPC — old fingerprint deduped them away. */
+        if (s.templateId === "CandidateSheet") {
+          base.candidateId = p.candidateId;
+          const len = (k: string) => (typeof p[k] === "string" ? (p[k] as string).length : 0);
+          base.rawBlobLens =
+            len("rawCandidateJson") +
+            len("rawSkillProgressionJson") +
+            len("rawMarketRelevanceJson") +
+            len("rawCareerGrowthJson");
+        }
+        return base;
+      }),
+    );
+  } catch {
+    return "navigate-fp-fallback";
+  }
+}
+
 function getActiveMultiSelectFingerprint(sections: GenerativeSection[]): string | null {
   for (let i = sections.length - 1; i >= 0; i--) {
     const s = sections[i];
@@ -71,6 +93,57 @@ function getActiveMultiSelectFingerprint(sections: GenerativeSection[]): string 
       return `${id}\0bubbles:${keys}`;
     }
     return `${id}\0default`;
+  }
+  return null;
+}
+
+/** Topmost MultiSelect `props.progressStep` (0=industry, 1=role, 2=priority in canonical payloads). */
+function getTopMultiSelectProgressStep(sections: GenerativeSection[]): number | null {
+  for (let i = sections.length - 1; i >= 0; i--) {
+    const s = sections[i];
+    if (s.templateId !== "MultiSelectOptions") continue;
+    const step = s.props?.progressStep;
+    if (typeof step === "number") return step;
+  }
+  return null;
+}
+
+function getActiveGlassmorphicKey(sections: GenerativeSection[]): string | null {
+  for (let i = sections.length - 1; i >= 0; i--) {
+    const s = sections[i];
+    if (s.templateId !== "GlassmorphicOptions") continue;
+    const id = typeof s.id === "string" ? s.id : "";
+    return `glass:${id}`;
+  }
+  return null;
+}
+
+function getTopGlassmorphicKeyFromIncoming(sections: GenerativeSection[]): string | null {
+  for (let i = sections.length - 1; i >= 0; i--) {
+    const s = sections[i];
+    if (s.templateId !== "GlassmorphicOptions") continue;
+    const id = typeof s.id === "string" ? s.id : "";
+    return `glass:${id}`;
+  }
+  return null;
+}
+
+function getActiveTextInputKey(sections: GenerativeSection[]): string | null {
+  for (let i = sections.length - 1; i >= 0; i--) {
+    const s = sections[i];
+    if (s.templateId !== "TextInput") continue;
+    const id = typeof s.id === "string" ? s.id : "";
+    return `text:${id}`;
+  }
+  return null;
+}
+
+function getTopTextInputKeyFromIncoming(sections: GenerativeSection[]): string | null {
+  for (let i = sections.length - 1; i >= 0; i--) {
+    const s = sections[i];
+    if (s.templateId !== "TextInput") continue;
+    const id = typeof s.id === "string" ? s.id : "";
+    return `text:${id}`;
   }
   return null;
 }
@@ -155,11 +228,6 @@ function extractIncomingSections(value: unknown): UpdatableSection[] {
   return single ? [single] : [];
 }
 
-/**
- * Scans incoming sections for a `_sessionEstablished` prop containing
- * `{ candidateId, name }`. If found, persists the session to localStorage
- * and strips the key so templates never see it.
- */
 function consumeSessionEstablished(sections: UpdatableSection[]): void {
   for (const section of sections) {
     const raw = section.props._sessionEstablished;
@@ -249,10 +317,6 @@ function applyIncomingSections(
   return next;
 }
 
-/**
- * Pops JobDetailSheet / EligibilitySheet overlays back to the last Job Center (JobSearchSheet)
- * or Saved Jobs (SavedJobsStack) section in the stack.
- */
 function sliceToJobBrowseAnchor(sections: GenerativeSection[]): GenerativeSection[] {
   const n = sections.length;
   if (n === 0) return sections;
@@ -276,11 +340,21 @@ const TEMPLATES_NEEDING_JOBS = new Set([
   "CardStackJobPreviewSheet",
   "JobSearchSheet",
   "JobDetailSheet",
+  /** Step 6 may pass `rawJobsJson` while CandidateSheet is visible — hydrate jobs cache for Step 7 CardStack without blocking on a second tool round-trip. */
+  "CandidateSheet",
 ]);
 const TEMPLATES_NEEDING_SKILLS = new Set(["ProfileSheet", "SkillCoverageSheet", "SkillsDetail", "SkillTestFlow", "TargetRoleSheet"]);
 const TEMPLATES_NEEDING_CANDIDATE = new Set(["CandidateSheet", "ProfileSheet"]);
-const TEMPLATES_NEEDING_CAREER_GROWTH = new Set(["CareerGrowthDetail", "CareerGrowthSheet"]);
-const TEMPLATES_NEEDING_MARKET_RELEVANCE = new Set(["MarketRelevanceDetail", "MarketRelevanceSheet"]);
+const TEMPLATES_NEEDING_CAREER_GROWTH = new Set([
+  "CareerGrowthDetail",
+  "CareerGrowthSheet",
+  "ProfileSheet",
+]);
+const TEMPLATES_NEEDING_MARKET_RELEVANCE = new Set([
+  "MarketRelevanceDetail",
+  "MarketRelevanceSheet",
+  "ProfileSheet",
+]);
 
 const DASHBOARD_COMPANION_TEMPLATES = new Set([
   "GlassmorphicOptions", "ProfileSheet", "SkillCoverageSheet",
@@ -289,7 +363,6 @@ const DASHBOARD_COMPANION_TEMPLATES = new Set([
   "SkillsDetail", "SkillTestFlow", "MarketRelevanceDetail", "CareerGrowthDetail",
   "MarketRelevanceSheet", "CareerGrowthSheet",
   "TargetRoleSheet", "MyLearningSheet",
-  /** Full-screen flows composed with Dashboard — prevents auto-injected profile-home covering this layer. */
   "SavedJobsStack",
 ]);
 
@@ -298,9 +371,97 @@ function buildJobLookupProps(props: Record<string, unknown>) {
 }
 
 /**
- * Unwraps common MCP response wrappers (`{ success, data }`, `{ result }`)
- * to get the actual candidate record with name/experience/education fields.
+ * Agent may pass `rawJobsJson` / `raw_jobs_json` — a single JSON string (e.g. output of JSON.stringify
+ * on the tool's `jobs` array or full tool object) so nested quotes in job descriptions do not break
+ * `call_site_function` argument parsing when the model hand-rolls outer JSON.
  */
+function expandRawJobsJsonIntoProps(props: Record<string, unknown>): void {
+  const raw = props.rawJobsJson ?? props.raw_jobs_json;
+  if (typeof raw !== "string" || !raw.trim()) return;
+  try {
+    let parsed = JSON.parse(raw.trim()) as unknown;
+    parsed = normalizeToolPayload(parsed);
+    delete props.rawJobsJson;
+    delete props.raw_jobs_json;
+    if (parsed == null) return;
+    if (Array.isArray(parsed)) {
+      props.rawJobs = parsed;
+      logMcpUiStore("expandRawJobsJson → rawJobs[]", { length: parsed.length });
+      return;
+    }
+    if (typeof parsed === "object") {
+      const o = parsed as Record<string, unknown>;
+      if (Array.isArray(o.jobs)) {
+        props.rawJobs = o.jobs;
+        logMcpUiStore("expandRawJobsJson → rawJobs from .jobs", { length: o.jobs.length });
+        return;
+      }
+      props.rawJobs = o as Record<string, unknown>;
+      logMcpUiStore("expandRawJobsJson → rawJobs object (non-array)", { rawSample: o });
+    }
+  } catch (e) {
+    logMcpUiStore("expandRawJobsJson PARSE FAILED (rawJobsJson kept on props)", {
+      error: e instanceof Error ? e.message : String(e),
+    });
+  }
+}
+
+/**
+ * Safe JSON-string transport for large payload props that often break outer
+ * call_site_function JSON when pasted as nested objects.
+ */
+function expandRawJsonPropIntoProps(
+  props: Record<string, unknown>,
+  sourceKey: string,
+  targetKey: string,
+): void {
+  const raw = props[sourceKey];
+  if (typeof raw !== "string" || !raw.trim()) return;
+  try {
+    const parsed = JSON.parse(raw.trim()) as unknown;
+    delete props[sourceKey];
+    props[targetKey] = parsed;
+    logMcpUiStore(`expandRawJson ${sourceKey} → ${targetKey}`, {
+      type: typeof parsed,
+      isArray: Array.isArray(parsed),
+      topKeys: parsed && typeof parsed === "object" && !Array.isArray(parsed)
+        ? Object.keys(parsed as object).slice(0, 12)
+        : undefined,
+    });
+  } catch (e) {
+    logMcpUiStore(`PARSE FAILED: ${sourceKey} (kept on props, will not reach ${targetKey})`, {
+      error: e instanceof Error ? e.message : String(e),
+      rawSample: raw,
+    });
+  }
+}
+
+function parseMaybeJsonString(value: unknown): unknown {
+  if (typeof value !== "string") return value;
+  const trimmed = value.trim();
+  if (!trimmed) return value;
+  try {
+    const once = JSON.parse(trimmed) as unknown;
+    if (typeof once === "string") {
+      try { return JSON.parse(once) as unknown; } catch { return once; }
+    }
+    return once;
+  } catch {
+    return value;
+  }
+}
+
+/** Unwrap MCP text envelopes like `{ type: "text", text: "<json>" }`. */
+function normalizeToolPayload(payload: unknown): unknown {
+  const first = parseMaybeJsonString(payload);
+  if (!first || typeof first !== "object" || Array.isArray(first)) return first;
+  const obj = first as Record<string, unknown>;
+  if (obj.type === "text" && typeof obj.text === "string") {
+    return parseMaybeJsonString(obj.text);
+  }
+  return first;
+}
+
 function unwrapCandidate(cache: unknown): Record<string, unknown> | null {
   if (!cache || typeof cache !== "object") return null;
   const obj = cache as Record<string, unknown>;
@@ -315,10 +476,6 @@ function unwrapCandidate(cache: unknown): Record<string, unknown> | null {
   return obj;
 }
 
-/**
- * Derives a job title/role from the candidate record.
- * Priority: current experience → most recent experience → first job preference.
- */
 function deriveCandidateTitle(cd: Record<string, unknown>): string | undefined {
   const exp = cd.experience;
   if (Array.isArray(exp) && exp.length > 0) {
@@ -334,6 +491,25 @@ function deriveCandidateTitle(cd: Record<string, unknown>): string | undefined {
   return undefined;
 }
 
+/** Fills CandidateSheet / ProfileSheet props from an unwrapped candidate record (MCP `get_candidate` body or cache). */
+function mergeUnwrappedCandidateIntoProps(
+  props: Record<string, unknown>,
+  cd: Record<string, unknown>,
+  templateId: string,
+): Record<string, unknown> {
+  const prefer = templateId === "ProfileSheet";
+  const next = { ...props };
+  const candidateName = (cd.name ?? cd.full_name ?? cd.display_name) as string | undefined;
+  if (candidateName && (prefer || !next.name)) next.name = candidateName;
+  const candidateTitle = (cd.title as string | undefined) ?? deriveCandidateTitle(cd);
+  if (candidateTitle && (prefer || !next.title)) next.title = candidateTitle;
+  if (cd.avatarUrl && (prefer || !next.avatarUrl)) next.avatarUrl = cd.avatarUrl as string;
+  if (cd.avatar_url && (prefer || !next.avatarUrl)) next.avatarUrl = cd.avatar_url as string;
+  if (!next.experience && cd.experience) next.experience = cd.experience;
+  if (!next.education && cd.education) next.education = cd.education;
+  return next;
+}
+
 function formatSalaryRange(rec: Record<string, unknown>): string | undefined {
   const min = rec.salary_min ?? rec.salaryMin;
   const max = rec.salary_max ?? rec.salaryMax;
@@ -344,11 +520,6 @@ function formatSalaryRange(rec: Record<string, unknown>): string | undefined {
   return (rec.salaryRange ?? rec.salary_range) as string | undefined;
 }
 
-/**
- * Extracts JobDetailSheet-compatible props from a cached job record.
- * Handles the real API shape (snake_case: `company_name`, `salary_min`,
- * `salary_max`, `match_score`, `job_id`) and the mock/camelCase shape.
- */
 function extractJobProps(rec: Record<string, unknown>): Record<string, unknown> {
   const inner =
     rec.job && typeof rec.job === "object"
@@ -356,13 +527,14 @@ function extractJobProps(rec: Record<string, unknown>): Record<string, unknown> 
       : rec;
 
   const id = (inner.job_id ?? inner.id ?? inner.jobId) as string | undefined;
-  const matchScore = inner.match_score ?? rec.match_score ?? rec.score ?? inner.matchScore ?? rec.matchScore;
+  const mergedForDesc = { ...inner, ...rec } as Record<string, unknown>;
+  const matchScore = extractMatchScorePair(rec, inner as Record<string, unknown>);
   const fitCategory =
     (inner.fitCategory ??
     inner.fit_category ??
     rec.fitCategory ??
     rec.fit_category ??
-    (matchScore != null ? categorizeFit(matchScore as number).category : undefined)) as string | undefined;
+    (matchScore != null ? categorizeFit(matchScore).category : undefined)) as string | undefined;
 
   const requiredSkills = (inner.required_skills ?? inner.requiredSkills ?? []) as SkillRef[];
   const recommendedSkills = (inner.recommended_skills ?? inner.recommendedSkills ?? []) as SkillRef[];
@@ -390,7 +562,7 @@ function extractJobProps(rec: Record<string, unknown>): Record<string, unknown> 
     company: inner.company_name ?? inner.company,
     location: inner.location,
     salaryRange: formatSalaryRange(inner),
-    description: inner.description,
+    description: pickJobDescription(mergedForDesc) ?? (inner.description as string | undefined),
     matchScore,
     fitCategory,
     requiredSkills,
@@ -402,12 +574,6 @@ function extractJobProps(rec: Record<string, unknown>): Record<string, unknown> 
   };
 }
 
-/**
- * Looks up a single job from the cached jobs array and returns
- * props suitable for JobDetailSheet.  Tries matching by ID first,
- * then falls back to title+company (handles voice-initiated navigation
- * where the AI may not know the cached job's ID).
- */
 function lookupJobFromCache(
   props: Record<string, unknown>,
   cache: unknown,
@@ -417,7 +583,6 @@ function lookupJobFromCache(
   const title = (props.title as string | undefined)?.toLowerCase();
   const company = (props.company as string | undefined)?.toLowerCase();
 
-  // Pass 1: exact ID match
   if (jobId) {
     for (const item of arr) {
       if (!item || typeof item !== "object") continue;
@@ -430,7 +595,6 @@ function lookupJobFromCache(
     }
   }
 
-  // Pass 2: fuzzy match by title + company (handles company_name from API)
   if (title) {
     for (const item of arr) {
       if (!item || typeof item !== "object") continue;
@@ -450,14 +614,6 @@ function lookupJobFromCache(
   return null;
 }
 
-/**
- * Manages the active generativeSubsections driven by the Runtime Agent via navigateToSection.
- * Patches UIFrameworkSiteFunctions.navigateToSection at runtime so the Mobeus SDK
- * routes all navigation calls through this hook's state updates.
- *
- * MCP data (jobs, skills, candidate) is managed by McpCacheProvider and accessed
- * via readCache() from mcpCacheBridge — no window globals needed.
- */
 const NAVIGATE_DRIFT_TIMEOUT_MS = 15000;
 
 export function usePhaseFlow() {
@@ -465,10 +621,24 @@ export function usePhaseFlow() {
     useState<GenerativeSection[]>(INITIAL_SECTIONS);
   const lastParseNudgeAtRef = useRef(0);
   const lastNavigateAtRef = useRef(0);
+  const lastAppliedNavigateFingerprintRef = useRef<string | null>(null);
+  const lastAppliedNavigateAtRef = useRef(0);
   const driftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sectionsRef = useRef<GenerativeSection[]>(INITIAL_SECTIONS);
   const multiSelectSubmittedRef = useRef(false);
   const multiSelectStepKeyRef = useRef<string | null>(null);
+  /** Set when user taps Continue on MultiSelect — must match `prevProgressStep` to allow leaving that step (blocks agent advance on STT alone). */
+  const multiSelectContinueStepRef = useRef<number | null>(null);
+  /** Limits repeat `[CORRECTION]` spam when the agent retries navigate without Continue. */
+  const lastMultiSelectCorrectionAtRef = useRef(0);
+  /** One-shot Step 1 kick when voice connects on WelcomeLanding. */
+  const sessionGreetingKickSentRef = useRef(false);
+  const glassmorphicCommittedRef = useRef(false);
+  const glassmorphicStepKeyRef = useRef<string | null>(null);
+  const textInputCommittedRef = useRef(false);
+  const textInputStepKeyRef = useRef<string | null>(null);
+  /** True after `linkedin-continue` until CandidateSheet is applied (LinkedIn demo must show LoadingLinkedIn first). */
+  const linkedInConnectPendingRef = useRef(false);
 
   const navigateToSection = useCallback(
     (...args: unknown[]): boolean | { disableNewResponseCreation: boolean } => {
@@ -482,7 +652,10 @@ export function usePhaseFlow() {
         const incoming = extractIncomingSections(parsed);
         if (incoming.length === 0) return false;
 
-        // Flow finished: cancel drift correction timer so we don't interrupt the AI.
+        if (incoming.some((s) => s.templateId === "RegistrationForm")) {
+          linkedInConnectPendingRef.current = false;
+        }
+
         if (driftTimerRef.current) {
           clearTimeout(driftTimerRef.current);
           driftTimerRef.current = null;
@@ -492,7 +665,15 @@ export function usePhaseFlow() {
 
         consumeSessionEstablished(incoming);
 
-        // Guard: block Dashboard when coming from CandidateSheet — must show CardStack first.
+        const payloadFingerprint = navigatePayloadFingerprint(incoming);
+        const dedupeNow = Date.now();
+        if (
+          payloadFingerprint === lastAppliedNavigateFingerprintRef.current &&
+          dedupeNow - lastAppliedNavigateAtRef.current < NAVIGATE_DEDUPE_MS
+        ) {
+          return true;
+        }
+
         const prevHasCandidateSheet = sectionsRef.current.some(
           (s) => s.templateId === "CandidateSheet",
         );
@@ -515,7 +696,6 @@ export function usePhaseFlow() {
           return { disableNewResponseCreation: true };
         }
 
-        // Onboarding CardStack: preview is local UI. JobDetailSheet is for JobSearchSheet (dashboard) via `user selected job:`.
         const prevHasCardStack = sectionsRef.current.some((s) => s.templateId === "CardStack");
         const prevHasJobSearch = sectionsRef.current.some((s) => s.templateId === "JobSearchSheet");
         const incomingHasJobDetail = incoming.some((s) => s.templateId === "JobDetailSheet");
@@ -526,13 +706,12 @@ export function usePhaseFlow() {
           if (incoming.length === 0) {
             informTele(
               "[SYSTEM] CardStack onboarding: the job preview sheet is already on screen. " +
-                "Do NOT open JobDetailSheet. Acknowledge in one sentence only — no navigateToSection, no search_knowledge for JobDetailSheet, no fetchCareerGrowth for that purpose.",
+                "Do NOT open JobDetailSheet. Acknowledge in one sentence only — no navigateToSection, no navigateWithKnowledgeKey job_detail_sheet, no get_career_growth for that purpose.",
             );
             return { disableNewResponseCreation: true };
           }
         }
 
-        // Onboarding guard: block JobSearchSheet when on CardStack (onboarding shows CardStack, not JobSearchSheet).
         const incomingHasJobSearch = incoming.some((s) => s.templateId === "JobSearchSheet");
         if (incomingHasJobSearch && prevHasCardStack && !prevHasJobSearch) {
           for (let i = incoming.length - 1; i >= 0; i--) {
@@ -547,7 +726,6 @@ export function usePhaseFlow() {
           }
         }
 
-        // Dashboard landing uses ProfileSheet only — never floating begin-cta bubbles.
         for (let i = incoming.length - 1; i >= 0; i--) {
           const sec = incoming[i];
           if (sec.templateId === "GlassmorphicOptions" && sec.id === "begin-cta") {
@@ -555,35 +733,103 @@ export function usePhaseFlow() {
           }
         }
 
-        // Guard: block RegistrationForm for returning visitors.
-        if (getVisitorSession()) {
-          const regIdx = incoming.findIndex((s) => s.templateId === "RegistrationForm");
-          if (regIdx !== -1) {
-            incoming.splice(regIdx, 1);
-            if (!incoming.some((s) => s.templateId === "Dashboard")) {
-              incoming.push({ id: "dashboard", templateId: "Dashboard", props: {} });
-            }
-          }
-        }
-
-        // Auto-inject cached MCP data into templates that need it.
-        // The LLM no longer serializes large payloads — bridge functions
-        // populate the cache via McpCacheProvider (mcpCacheBridge).
-        const cache = readCache();
         for (const s of incoming) {
+          logMcpUiMilestone("navigateToSection incoming section", {
+            templateId: s.templateId,
+            subsectionId: s.id,
+            isUpdate: (s as { _update?: boolean })._update === true,
+            propKeys: s.props && typeof s.props === "object"
+              ? Object.keys(s.props as object)
+              : [],
+            hasRawJobsJson: !!(s.props as Record<string, unknown>)?.rawJobsJson,
+            hasRawJobs: !!(s.props as Record<string, unknown>)?.rawJobs,
+            hasJobs: !!(s.props as Record<string, unknown>)?.jobs,
+            hasRawSkillProgressionJson: !!(s.props as Record<string, unknown>)?.rawSkillProgressionJson,
+            hasRawMarketRelevanceJson: !!(s.props as Record<string, unknown>)?.rawMarketRelevanceJson,
+            hasRawCareerGrowthJson: !!(s.props as Record<string, unknown>)?.rawCareerGrowthJson,
+          });
+          let cache = readCache();
+          if (TEMPLATES_NEEDING_JOBS.has(s.templateId)) {
+            expandRawJobsJsonIntoProps(s.props as Record<string, unknown>);
+          }
+          expandRawJsonPropIntoProps(s.props as Record<string, unknown>, "rawCandidateJson", "rawCandidate");
+          expandRawJsonPropIntoProps(s.props as Record<string, unknown>, "raw_candidate_json", "rawCandidate");
+          expandRawJsonPropIntoProps(s.props as Record<string, unknown>, "rawSkillProgressionJson", "rawSkillProgression");
+          expandRawJsonPropIntoProps(s.props as Record<string, unknown>, "raw_skill_progression_json", "rawSkillProgression");
+          expandRawJsonPropIntoProps(s.props as Record<string, unknown>, "rawMarketRelevanceJson", "rawMarketRelevance");
+          expandRawJsonPropIntoProps(s.props as Record<string, unknown>, "raw_market_relevance_json", "rawMarketRelevance");
+          expandRawJsonPropIntoProps(s.props as Record<string, unknown>, "rawCareerGrowthJson", "rawCareerGrowth");
+          expandRawJsonPropIntoProps(s.props as Record<string, unknown>, "raw_career_growth_json", "rawCareerGrowth");
+
           if (s.props?.rawSkillProgression) {
+            const normalizedRawSkills = normalizeToolPayload(s.props.rawSkillProgression);
             const merged = {
               ...(cache.skills as Record<string, unknown> | null),
-              ...(s.props.rawSkillProgression as Record<string, unknown>),
+              ...(normalizedRawSkills as Record<string, unknown>),
             };
             loadIntoCacheBridge("skills", merged);
+            logMcpUiMilestone("cache.skills ← navigate props", {
+              templateId: s.templateId,
+              subsectionId: s.id,
+              keys: merged && typeof merged === "object" ? Object.keys(merged as object).slice(0, 24) : [],
+              rawSample: merged,
+            });
             s.props = { ...s.props, rawSkillProgression: merged };
+            cache = readCache();
+          }
+          if (s.props?.rawCareerGrowth) {
+            const normalizedRawCareer = normalizeToolPayload(s.props.rawCareerGrowth);
+            loadIntoCacheBridge("careerGrowth", normalizedRawCareer);
+            logMcpUiMilestone("cache.careerGrowth ← navigate props", {
+              templateId: s.templateId,
+              subsectionId: s.id,
+              rawSample: normalizedRawCareer,
+            });
+            s.props = { ...s.props, rawCareerGrowth: normalizedRawCareer };
+            cache = readCache();
+          }
+          if (s.props?.rawMarketRelevance) {
+            const normalizedRawMarket = normalizeToolPayload(s.props.rawMarketRelevance);
+            loadIntoCacheBridge("marketRelevance", normalizedRawMarket);
+            logMcpUiMilestone("cache.marketRelevance ← navigate props", {
+              templateId: s.templateId,
+              subsectionId: s.id,
+              rawSample: normalizedRawMarket,
+            });
+            s.props = { ...s.props, rawMarketRelevance: normalizedRawMarket };
+            cache = readCache();
           }
 
           if (TEMPLATES_NEEDING_SKILLS.has(s.templateId) && !s.props?.rawSkillProgression && cache.skills) {
             s.props = { ...s.props, rawSkillProgression: cache.skills };
           } else if (TEMPLATES_NEEDING_SKILLS.has(s.templateId) && !cache.skills) {
-            fetchSkills("ai-engineer");
+            void fetchSkills("ai-engineer");
+          }
+          if (TEMPLATES_NEEDING_JOBS.has(s.templateId) && s.props?.rawJobs != null) {
+            const rj = s.props.rawJobs;
+            if (Array.isArray(rj)) {
+              loadIntoCacheBridge("jobs", { jobs: rj });
+              logMcpUiMilestone("cache.jobs ← navigate props (array)", {
+                templateId: s.templateId, subsectionId: s.id, count: rj.length,
+              });
+            } else if (typeof rj === "object") {
+              loadIntoCacheBridge("jobs", rj);
+              const arr = resolveJobsArray(rj);
+              logMcpUiMilestone("cache.jobs ← navigate props (object)", {
+                templateId: s.templateId, subsectionId: s.id, resolvedCount: arr.length, rawSample: rj,
+              });
+              if (arr.length) {
+                s.props = { ...s.props, rawJobs: arr };
+              } else {
+                const next = { ...(s.props as Record<string, unknown>) };
+                delete next.rawJobs;
+                s.props = next;
+                logMcpUiStore("cache.jobs ← navigate props — resolveJobsArray returned 0, rawJobs removed", {
+                  templateId: s.templateId, subsectionId: s.id, rawSample: rj,
+                });
+              }
+            }
+            cache = readCache();
           }
           if (TEMPLATES_NEEDING_JOBS.has(s.templateId) && !s.props?.rawJobs && !s.props?.jobs) {
             if (cache.jobs) {
@@ -596,54 +842,84 @@ export function usePhaseFlow() {
                 );
                 const injected = s.templateId === "CardStack" ? normalized.slice(0, 3) : normalized;
                 s.props = { ...s.props, jobs: injected };
+                logMcpUiMilestone("jobs injected from cache → props", {
+                  templateId: s.templateId, subsectionId: s.id, count: injected.length,
+                });
+              } else {
+                logMcpUiStore("WARN: cache.jobs exists but resolveJobsArray returned 0", {
+                  templateId: s.templateId, subsectionId: s.id, rawSample: cache.jobs,
+                });
               }
             } else {
+              logMcpUiStore("WARN: no jobs in cache and no rawJobs/jobs in props — fetching directly", {
+                templateId: s.templateId, subsectionId: s.id,
+              });
               const sess = getVisitorSession();
-              if (sess) fetchJobs(sess.candidateId);
+              if (sess) void fetchJobs(sess.candidateId);
             }
           }
           if (TEMPLATES_NEEDING_CANDIDATE.has(s.templateId)) {
-            if (!cache.candidate) {
-              // Candidate cache empty — trigger a fallback fetch
-              const sess = getVisitorSession();
-              if (sess) fetchCandidate(sess.candidateId);
+            const rawCand = s.props?.rawCandidate ?? s.props?.raw_candidate;
+            if (rawCand != null) {
+              const normalizedRawCandidate = normalizeToolPayload(rawCand);
+              loadIntoCacheBridge("candidate", normalizedRawCandidate);
+              logMcpUiMilestone("cache.candidate ← navigate props", {
+                templateId: s.templateId,
+                subsectionId: s.id,
+                rawSample: normalizedRawCandidate,
+              });
+              const cd = unwrapCandidate(normalizedRawCandidate);
+              if (cd) {
+                s.props = mergeUnwrappedCandidateIntoProps(
+                  s.props as Record<string, unknown>,
+                  cd,
+                  s.templateId,
+                );
+              }
+              const stripped = { ...(s.props as Record<string, unknown>) };
+              delete stripped.rawCandidate;
+              delete stripped.raw_candidate;
+              s.props = stripped;
+              cache = readCache();
             }
             if (cache.candidate) {
               const cd = unwrapCandidate(cache.candidate);
               if (cd) {
-                const prefer = s.templateId === "ProfileSheet";
-                const candidateName = (cd.name ?? cd.full_name ?? cd.display_name) as string | undefined;
-                if (candidateName && (prefer || !s.props?.name))
-                  s.props = { ...s.props, name: candidateName };
-                const candidateTitle = (cd.title as string | undefined) ?? deriveCandidateTitle(cd);
-                if (candidateTitle && (prefer || !s.props?.title))
-                  s.props = { ...s.props, title: candidateTitle };
-                if (cd.avatarUrl && (prefer || !s.props?.avatarUrl))
-                  s.props = { ...s.props, avatarUrl: cd.avatarUrl as string };
-                if (cd.avatar_url && (prefer || !s.props?.avatarUrl))
-                  s.props = { ...s.props, avatarUrl: cd.avatar_url as string };
-                if (!s.props?.experience && cd.experience) s.props = { ...s.props, experience: cd.experience };
-                if (!s.props?.education && cd.education) s.props = { ...s.props, education: cd.education };
+                s.props = mergeUnwrappedCandidateIntoProps(
+                  s.props as Record<string, unknown>,
+                  cd,
+                  s.templateId,
+                );
               }
             }
           }
 
           if (TEMPLATES_NEEDING_CAREER_GROWTH.has(s.templateId)) {
-            if (!cache.careerGrowth) {
-              const sess = getVisitorSession();
-              if (sess) fetchCareerGrowth(sess.candidateId);
-            }
             if (cache.careerGrowth && !s.props?.rawCareerGrowth) {
               s.props = { ...s.props, rawCareerGrowth: cache.careerGrowth };
+              logMcpUiStore("rawCareerGrowth injected from cache → props", {
+                templateId: s.templateId, subsectionId: s.id, rawSample: cache.careerGrowth,
+              });
+            } else if (!cache.careerGrowth) {
+              logMcpUiStore("WARN: cache.careerGrowth empty — fetching directly", {
+                templateId: s.templateId, subsectionId: s.id,
+              });
+              const sess = getVisitorSession();
+              if (sess) void fetchCareerGrowth(sess.candidateId);
             }
           }
           if (TEMPLATES_NEEDING_MARKET_RELEVANCE.has(s.templateId)) {
-            if (!cache.marketRelevance) {
-              const sess = getVisitorSession();
-              if (sess) fetchMarketRelevance(sess.candidateId);
-            }
             if (cache.marketRelevance && !s.props?.rawMarketRelevance) {
               s.props = { ...s.props, rawMarketRelevance: cache.marketRelevance };
+              logMcpUiStore("rawMarketRelevance injected from cache → props", {
+                templateId: s.templateId, subsectionId: s.id, rawSample: cache.marketRelevance,
+              });
+            } else if (!cache.marketRelevance) {
+              logMcpUiStore("WARN: cache.marketRelevance empty — fetching directly", {
+                templateId: s.templateId, subsectionId: s.id,
+              });
+              const sess = getVisitorSession();
+              if (sess) void fetchMarketRelevance(sess.candidateId);
             }
           }
 
@@ -689,6 +965,7 @@ export function usePhaseFlow() {
         const hasOptions = incoming.some((s) => DASHBOARD_COMPANION_TEMPLATES.has(s.templateId));
 
         if (hasDashboard && !hasOptions) {
+          const cache = readCache();
           incoming.push({
             id: "profile-home",
             templateId: "ProfileSheet",
@@ -698,32 +975,46 @@ export function usePhaseFlow() {
           if (last.templateId === "ProfileSheet" && TEMPLATES_NEEDING_SKILLS.has(last.templateId)) {
             if (!last.props?.rawSkillProgression && cache.skills) {
               last.props = { ...last.props, rawSkillProgression: cache.skills };
-            } else if (!cache.skills) {
-              fetchSkills("ai-engineer");
+            }
+          }
+          if (last.templateId === "ProfileSheet" && TEMPLATES_NEEDING_MARKET_RELEVANCE.has(last.templateId)) {
+            if (!last.props?.rawMarketRelevance && cache.marketRelevance) {
+              last.props = { ...last.props, rawMarketRelevance: cache.marketRelevance };
+            }
+          }
+          if (last.templateId === "ProfileSheet" && TEMPLATES_NEEDING_CAREER_GROWTH.has(last.templateId)) {
+            if (!last.props?.rawCareerGrowth && cache.careerGrowth) {
+              last.props = { ...last.props, rawCareerGrowth: cache.careerGrowth };
             }
           }
           if (last.templateId === "ProfileSheet" && TEMPLATES_NEEDING_CANDIDATE.has(last.templateId)) {
-            if (!cache.candidate) {
-              const sess = getVisitorSession();
-              if (sess) fetchCandidate(sess.candidateId);
-            }
             if (cache.candidate) {
               const cd = unwrapCandidate(cache.candidate);
               if (cd) {
-                const candidateName = (cd.name ?? cd.full_name ?? cd.display_name) as string | undefined;
-                if (candidateName) last.props = { ...last.props, name: candidateName };
-                const candidateTitle = (cd.title as string | undefined) ?? deriveCandidateTitle(cd);
-                if (candidateTitle && !last.props?.title) last.props = { ...last.props, title: candidateTitle };
-                if (cd.avatarUrl && !last.props?.avatarUrl) last.props = { ...last.props, avatarUrl: cd.avatarUrl as string };
-                if (cd.avatar_url && !last.props?.avatarUrl) last.props = { ...last.props, avatarUrl: cd.avatar_url as string };
-                if (!last.props?.experience && cd.experience) last.props = { ...last.props, experience: cd.experience };
-                if (!last.props?.education && cd.education) last.props = { ...last.props, education: cd.education };
+                last.props = mergeUnwrappedCandidateIntoProps(
+                  last.props as Record<string, unknown>,
+                  cd,
+                  last.templateId,
+                );
               }
             }
           }
           if (last.templateId === "ProfileSheet" && !last.props?.name) {
             last.props = { ...last.props, name: "Your profile" };
           }
+          logMcpUiMilestone("Dashboard profile-home props (after cache inject)", {
+            hasRawSkillProgression: !!last.props?.rawSkillProgression,
+            hasRawMarketRelevance: !!last.props?.rawMarketRelevance,
+            hasRawCareerGrowth: !!last.props?.rawCareerGrowth,
+            name: last.props?.name,
+            cacheState: {
+              hasSkills: !!cache.skills,
+              hasMarketRelevance: !!cache.marketRelevance,
+              hasCareerGrowth: !!cache.careerGrowth,
+              hasJobs: !!cache.jobs,
+              hasCandidate: !!cache.candidate,
+            },
+          });
         }
 
         const hasBeginCta = incoming.some(
@@ -737,32 +1028,223 @@ export function usePhaseFlow() {
           });
         }
 
-        // Multi-select guard: block premature navigation away from MultiSelectOptions.
-        // The AI must wait for the user to tap Continue (which fires sendSelectionIntent).
-        const prevHasMultiSelect = sectionsRef.current.some(
-          (s) => s.templateId === "MultiSelectOptions",
+        // Use a synchronous snapshot so back-to-back navigateToSection RPCs in the same tick
+        // still see the previous navigation (e.g. Role MultiSelect) before the guard runs.
+        // Previously sectionsRef was only updated inside setState, so the second call could
+        // skip the MultiSelect guard and replace the screen with Priority/Registration.
+        const prevSnapshot = sectionsRef.current;
+
+        const prevHadLoadingLinkedIn = prevSnapshot.some(
+          (s) => s.templateId === "LoadingLinkedIn",
         );
-        const incomingReplacesAll = incoming.some((s) => !s._update);
-        const incomingKeepsMultiSelect = incoming.some(
-          (s) => s.templateId === "MultiSelectOptions",
+        const incomingHasCandidateSheet = incoming.some(
+          (s) => s.templateId === "CandidateSheet",
+        );
+        const incomingHasLoadingLinkedIn = incoming.some(
+          (s) => s.templateId === "LoadingLinkedIn",
         );
         if (
-          prevHasMultiSelect &&
-          incomingReplacesAll &&
-          !incomingKeepsMultiSelect &&
-          !multiSelectSubmittedRef.current
+          linkedInConnectPendingRef.current &&
+          incomingHasCandidateSheet &&
+          !prevHadLoadingLinkedIn &&
+          !incomingHasLoadingLinkedIn
         ) {
           informTele(
-            "[CORRECTION] MultiSelectOptions is still active — the user has not tapped Continue yet. " +
-              "Do NOT navigate away from a MultiSelect step on individual voice selections. " +
-              'Wait for "user selected: <comma-separated selections>" before calling navigateToSection.',
+            "[SYSTEM] LinkedIn path: CandidateSheet arrived but LoadingLinkedIn was not the previous top section " +
+              "(intermediate navigate or race). Applying CandidateSheet anyway so the user is not stuck on the spinner. " +
+              "Prefer: show LoadingLinkedIn first, then tools, then CandidateSheet — do not replace LoadingLinkedIn with Dashboard-only payloads before review.",
+          );
+          /* Do not return — hosts often report RPC success even when we used to block here, leaving the UI frozen. */
+        }
+        const incomingHasCardStackForLinkedIn = incoming.some(
+          (s) => s.templateId === "CardStack",
+        );
+        const incomingHasDashboardForLinkedIn = incoming.some(
+          (s) => s.templateId === "Dashboard",
+        );
+        if (
+          linkedInConnectPendingRef.current &&
+          !incomingHasCandidateSheet &&
+          (incomingHasCardStackForLinkedIn || incomingHasDashboardForLinkedIn)
+        ) {
+          informTele(
+            "[CORRECTION] LinkedIn onboarding is incomplete. " +
+              "Do NOT navigate to CardStack or Dashboard before CandidateSheet. " +
+              "After LoadingLinkedIn + tools, call navigateToSection with CandidateSheet first (include rawCandidate/session props).",
           );
           return { disableNewResponseCreation: true };
         }
 
-        // Pre-compute from `incoming` BEFORE setState — React 18 automatic
-        // batching may defer the updater, leaving `resolved` empty when we
-        // need it for the return value and the hard-stop informTele.
+        let consumedMultiSelectContinue = false;
+
+        const prevHasMultiSelect = prevSnapshot.some(
+          (s) => s.templateId === "MultiSelectOptions",
+        );
+        const prevMultiFp = getActiveMultiSelectFingerprint(prevSnapshot);
+        const incomingReplacesAll = incoming.some((s) => !s._update);
+        const incomingMultiFp = getActiveMultiSelectFingerprint(
+          incoming as GenerativeSection[],
+        );
+        // Role → Priority → Registration are all MultiSelectOptions; the old guard only checked
+        // "incoming includes MultiSelect", so swapping steps without Continue incorrectly passed.
+        const incomingKeepsSameMultiStep =
+          incomingMultiFp != null &&
+          prevMultiFp != null &&
+          incomingMultiFp === prevMultiFp;
+        const prevProgressStep = getTopMultiSelectProgressStep(prevSnapshot);
+        const incomingProgressStep = getTopMultiSelectProgressStep(
+          incoming as GenerativeSection[],
+        );
+        const incomingHasMultiSelect = incoming.some((s) => s.templateId === "MultiSelectOptions");
+
+        // Guard: never jump to MultiSelectOptions (qualification) while WelcomeLanding is still
+        // the active screen. The agent MUST call welcome_greeting (GlassmorphicOptions) first.
+        const prevHasWelcomeLanding = prevSnapshot.some((s) => s.templateId === "WelcomeLanding");
+        if (prevHasWelcomeLanding && incomingReplacesAll && incomingHasMultiSelect) {
+          const nowCorr = Date.now();
+          if (nowCorr - lastMultiSelectCorrectionAtRef.current >= 2600) {
+            lastMultiSelectCorrectionAtRef.current = nowCorr;
+            informTele(
+              "[CORRECTION] WelcomeLanding is still active. You MUST call navigateWithKnowledgeKey " +
+                "with key='welcome_greeting' FIRST to show the greeting bubbles before any qualification step. " +
+                "Do NOT call qualification_industry, role, or any MultiSelectOptions key until the user selects from the welcome screen.",
+            );
+          }
+          return false;
+        }
+
+        // Hard gate (belt-and-suspenders): if any MultiSelectOptions is on screen AND the user
+        // has not yet tapped Continue (multiSelectContinueStepRef is null), reject every full-replace
+        // navigation that would put a different MultiSelectOptions on screen.
+        // This catches both navigateWithKnowledgeKey and direct navigateToSection calls.
+        if (
+          prevHasMultiSelect &&
+          multiSelectContinueStepRef.current === null &&
+          incomingReplacesAll &&
+          incomingHasMultiSelect &&
+          !incomingKeepsSameMultiStep
+        ) {
+          const nowHard = Date.now();
+          if (nowHard - lastMultiSelectCorrectionAtRef.current >= 2600) {
+            lastMultiSelectCorrectionAtRef.current = nowHard;
+            informTele(
+              "[CORRECTION] MultiSelectOptions is active and waiting for the user to tap Continue. " +
+                "Do NOT navigate to a different qualification step before the user selects. " +
+                "Wait for `user selected: <comma-separated selections>` via TellTele.",
+            );
+          }
+          return false;
+        }
+
+        if (prevHasMultiSelect && incomingReplacesAll) {
+          const emitMultiCorrection = (body: string) => {
+            const nowCorr = Date.now();
+            if (nowCorr - lastMultiSelectCorrectionAtRef.current >= 2600) {
+              lastMultiSelectCorrectionAtRef.current = nowCorr;
+              informTele(body);
+            }
+          };
+
+          if (incomingKeepsSameMultiStep) {
+            emitMultiCorrection(
+              "[CORRECTION] MultiSelectOptions: the user has not tapped Continue yet. " +
+                "Do NOT re-send the same screen — a full replace clears their chip selections. " +
+                'Wait for `user selected: <comma-separated selections>` via TellTele.',
+            );
+            return false;
+          }
+
+          const advancing =
+            typeof prevProgressStep === "number" &&
+            typeof incomingProgressStep === "number" &&
+            incomingProgressStep > prevProgressStep;
+
+          const continueTokenMatches =
+            typeof prevProgressStep === "number"
+              ? multiSelectContinueStepRef.current === prevProgressStep
+              : multiSelectContinueStepRef.current !== null;
+
+          if (advancing) {
+            if (!continueTokenMatches) {
+              const stepHint =
+                typeof prevProgressStep === "number" && typeof incomingProgressStep === "number"
+                  ? ` UI is still on qualification progressStep ${prevProgressStep} (0=industry, 1=role, 2=priority); you attempted ${incomingProgressStep}.`
+                  : "";
+              emitMultiCorrection(
+                "[CORRECTION] MultiSelectOptions: advance only after the user taps Continue (or voice continue/done). " +
+                  "Chip picks and raw STT alone do **not** count — wait for TellTele `user selected: <comma-separated selections>`." +
+                  stepHint +
+                  " Do not call the next `navigateWithKnowledgeKey` until that line arrives.",
+              );
+              return false;
+            }
+            consumedMultiSelectContinue = true;
+          } else if (incomingHasMultiSelect) {
+            emitMultiCorrection(
+              "[CORRECTION] MultiSelectOptions: cannot jump to a different multi-select without Continue on the current step. " +
+                'Wait for `user selected: <comma-separated selections>` via TellTele.',
+            );
+            return false;
+          } else {
+            if (!continueTokenMatches) {
+              emitMultiCorrection(
+                "[CORRECTION] MultiSelectOptions: leave this step only after Continue — wait for `user selected: <comma-separated selections>` via TellTele before Registration or the next template.",
+              );
+              return false;
+            }
+            consumedMultiSelectContinue = true;
+          }
+        }
+
+        const prevHasGlass = prevSnapshot.some(
+          (s) => s.templateId === "GlassmorphicOptions",
+        );
+        const prevGlassKey = getActiveGlassmorphicKey(prevSnapshot);
+        const incomingGlassKey = getTopGlassmorphicKeyFromIncoming(incoming);
+        const incomingKeepsSameGlassStep =
+          incomingGlassKey != null &&
+          prevGlassKey != null &&
+          incomingGlassKey === prevGlassKey;
+        if (prevHasGlass && incomingReplacesAll && !glassmorphicCommittedRef.current) {
+          if (incomingKeepsSameGlassStep) {
+            informTele(
+              "[CORRECTION] GlassmorphicOptions: the user has not chosen a bubble yet. " +
+                "Do NOT re-send the same screen. " +
+                'Wait for `user selected: <label>` via TellTele (tap or matching voice).',
+            );
+          } else {
+            informTele(
+              "[CORRECTION] GlassmorphicOptions is still active — the user has not finished this step. " +
+                'Wait for `user selected: <label>` (tap or spoken match) before any navigation or next step.',
+            );
+          }
+          return false;
+        }
+
+        const prevHasTextInput = prevSnapshot.some(
+          (s) => s.templateId === "TextInput",
+        );
+        const prevTextKey = getActiveTextInputKey(prevSnapshot);
+        const incomingTextKey = getTopTextInputKeyFromIncoming(incoming);
+        const incomingKeepsSameTextStep =
+          incomingTextKey != null &&
+          prevTextKey != null &&
+          incomingTextKey === prevTextKey;
+        if (prevHasTextInput && incomingReplacesAll && !textInputCommittedRef.current) {
+          if (incomingKeepsSameTextStep) {
+            informTele(
+              "[CORRECTION] TextInput: the user has not submitted yet. " +
+                "Do NOT re-send the same screen. " +
+                'Wait for `user typed: <value>` via TellTele after they tap the arrow or press Enter.',
+            );
+          } else {
+            informTele(
+              "[CORRECTION] TextInput is still active — wait for `user typed: <value>` (submit) before navigating away.",
+            );
+          }
+          return false;
+        }
+
         const incomingNeedsWait = incoming.some((s) =>
           WAIT_FOR_USER_TEMPLATES.has(s.templateId),
         );
@@ -775,35 +1257,79 @@ export function usePhaseFlow() {
           );
         }
 
-        let resolved: GenerativeSection[] = [];
-        setGenerativeSections((prev) => {
-          resolved = applyIncomingSections(prev, incoming);
-          const fp = getActiveMultiSelectFingerprint(resolved);
-          if (fp == null) {
-            multiSelectStepKeyRef.current = null;
-          } else if (multiSelectStepKeyRef.current !== fp) {
-            multiSelectStepKeyRef.current = fp;
-            multiSelectSubmittedRef.current = false;
-          }
-          sectionsRef.current = resolved;
-          return resolved;
-        });
+        if (
+          incomingHasMultiSelect &&
+          !(prevHasMultiSelect && incomingKeepsSameMultiStep)
+        ) {
+          informTele(
+            "[SYSTEM HARD STOP] MultiSelectOptions is now on screen. " +
+              "Do NOT generate any more speech, audio, or tool calls (including navigateToSection / navigateWithKnowledgeKey). " +
+              "Bubble or voice chip picks alone do NOT advance the journey. " +
+              "Wait ONLY until the user taps Continue (or voice continue/done) and you receive " +
+              "`user selected: <comma-separated selections>` via TellTele before your next response.",
+          );
+        }
 
-        // Notify TeleSpeechContext to clear stale speech text (dashboard journey only).
+        if (incoming.some((s) => s.templateId === "TextInput")) {
+          informTele(
+            "[SYSTEM HARD STOP] TextInput is now on screen. " +
+              "Do NOT generate any more speech, audio, or tool calls. " +
+              "Wait ONLY for `user typed: <value>` from TellTele before your next response.",
+          );
+        }
+
+        const nextSections = applyIncomingSections(prevSnapshot, incoming);
+
+        if (consumedMultiSelectContinue) {
+          multiSelectContinueStepRef.current = null;
+        }
+
+        const fp = getActiveMultiSelectFingerprint(nextSections);
+        if (fp == null) {
+          multiSelectStepKeyRef.current = null;
+        } else if (multiSelectStepKeyRef.current !== fp) {
+          multiSelectStepKeyRef.current = fp;
+          multiSelectSubmittedRef.current = false;
+          multiSelectContinueStepRef.current = null;
+        }
+
+        const gk = getActiveGlassmorphicKey(nextSections);
+        if (gk == null) {
+          glassmorphicStepKeyRef.current = null;
+        } else if (glassmorphicStepKeyRef.current !== gk) {
+          glassmorphicStepKeyRef.current = gk;
+          glassmorphicCommittedRef.current = false;
+        }
+
+        const tk = getActiveTextInputKey(nextSections);
+        if (tk == null) {
+          textInputStepKeyRef.current = null;
+        } else if (textInputStepKeyRef.current !== tk) {
+          textInputStepKeyRef.current = tk;
+          textInputCommittedRef.current = false;
+        }
+
+        sectionsRef.current = nextSections;
+        setGenerativeSections(nextSections);
+
+        lastAppliedNavigateFingerprintRef.current = payloadFingerprint;
+        lastAppliedNavigateAtRef.current = dedupeNow;
+
+        if (linkedInConnectPendingRef.current && nextSections.some((s) => s.templateId === "CandidateSheet")) {
+          linkedInConnectPendingRef.current = false;
+        }
+
         try {
-          const ids = resolved.length > 0
-            ? resolved.map((s) => s.templateId)
-            : incoming.map((s) => s.templateId);
+          const ids = nextSections.map((s) => s.templateId);
           window.dispatchEvent(
             new CustomEvent("tele-navigate-section", { detail: { templateIds: ids } })
           );
         } catch {}
 
-        return incomingNeedsWait || shouldDisableNewResponse(resolved)
+        return incomingNeedsWait || shouldDisableNewResponse(nextSections)
           ? { disableNewResponseCreation: true }
           : true;
       } catch {
-        // not valid JSON — nudge model to retry with strict JSON payload
         const now = Date.now();
         if (now - lastParseNudgeAtRef.current > 1200) {
           lastParseNudgeAtRef.current = now;
@@ -820,49 +1346,183 @@ export function usePhaseFlow() {
     []
   );
 
-  // Patch UIFrameworkSiteFunctions so the Mobeus SDK always calls the latest handler.
-  useEffect(() => {
-    const siteFns = (
-      window as unknown as {
-        UIFrameworkSiteFunctions?: Record<string, unknown>;
-      }
-    ).UIFrameworkSiteFunctions;
+  /** Timer ref for the deferred Step-1 kick (cleared on unmount or early video-track trigger). */
+  const kickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    if (siteFns && typeof siteFns === "object") {
-      siteFns.navigateToSection = navigateToSection;
-    }
+  useEffect(() => {
+    const KICK_MSG =
+      "[SYSTEM] Voice session just connected. Do ONLY these two things now — nothing else: " +
+      "(1) Speak a short welcome greeting. " +
+      "(2) Call navigateWithKnowledgeKey with key='welcome_greeting' to show the Yes/No bubbles. " +
+      "Do NOT call qualification_industry, role, priority, or any other key. " +
+      "HARD STOP — wait for `user selected:` via TellTele before your next action.";
+
+    /**
+     * Schedule (or re-schedule) the kick after `delayMs`.
+     * Calling this a second time with a shorter delay cancels the previous timer.
+     */
+    const scheduleKick = (delayMs: number) => {
+      if (sessionGreetingKickSentRef.current) return;
+      if (kickTimerRef.current !== null) clearTimeout(kickTimerRef.current);
+      kickTimerRef.current = setTimeout(() => {
+        kickTimerRef.current = null;
+        if (sessionGreetingKickSentRef.current) return;
+        const top = sectionsRef.current[sectionsRef.current.length - 1];
+        if (top?.templateId !== "WelcomeLanding") return;
+        const { kickAgentTurn } = useVoiceSessionStore.getState();
+        sessionGreetingKickSentRef.current = true;
+        void kickAgentTurn(KICK_MSG);
+
+        // Self-healing recovery: if the agent fails to call welcome_greeting within
+        // 8 s (speaks but never shows the options), apply it directly from the SPA.
+        setTimeout(() => {
+          const currentTop = sectionsRef.current[sectionsRef.current.length - 1];
+          if (currentTop?.templateId !== "WelcomeLanding") return; // already navigated
+          const nav = (
+            window as unknown as {
+              __siteFunctions?: { navigateWithKnowledgeKey?: (a: Record<string, unknown>) => unknown };
+            }
+          ).__siteFunctions?.navigateWithKnowledgeKey;
+          if (typeof nav === "function") nav({ key: "welcome_greeting" });
+        }, 8000);
+      }, delayMs);
+    };
+
+    /**
+     * Called when the room becomes ready. Schedules a 2-second fallback kick so
+     * Step 1 always fires even if the avatar video track never arrives.
+     */
+    const onRoomReady = () => {
+      if (sessionGreetingKickSentRef.current) return;
+      const top = sectionsRef.current[sectionsRef.current.length - 1];
+      if (top?.templateId !== "WelcomeLanding") return;
+      const { room } = useVoiceSessionStore.getState();
+      if (!room?.localParticipant) return;
+      // Schedule a 2-second fallback — avatar video track may shorten this below.
+      scheduleKick(2000);
+    };
+
+    // Fire when room connects.
+    window.addEventListener("tele-connection-changed", onRoomReady);
+
+    // Subscribe to the store: (a) catch room ready, (b) shorten the timer when
+    // the avatar video track arrives so Step 1 starts right after the avatar appears.
+    const unsubStore = useVoiceSessionStore.subscribe((state) => {
+      if (state.room?.localParticipant) onRoomReady();
+      // Avatar video track received → shorten the kick delay to 600 ms so
+      // the avatar has just enough time to render before the agent speaks.
+      if (state.avatarVideoTrack && !sessionGreetingKickSentRef.current) {
+        scheduleKick(600);
+      }
+    });
+
+    // Run immediately in case everything is already set (e.g. hot-reload).
+    onRoomReady();
+    if (useVoiceSessionStore.getState().avatarVideoTrack) scheduleKick(600);
+
+    return () => {
+      window.removeEventListener("tele-connection-changed", onRoomReady);
+      unsubStore();
+      if (kickTimerRef.current !== null) {
+        clearTimeout(kickTimerRef.current);
+        kickTimerRef.current = null;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    registerSiteFunctions();
+
+    const w = window as unknown as {
+      UIFrameworkSiteFunctions?: Record<string, unknown>;
+      __siteFunctions?: Record<string, unknown>;
+    };
+
+    w.UIFrameworkSiteFunctions ??= {};
+    w.UIFrameworkSiteFunctions.navigateToSection = navigateToSection;
+
+    w.__siteFunctions ??= {};
+    w.__siteFunctions.navigateToSection = navigateToSection;
+
+    // Lightweight gate consumed by navigateWithKnowledgeKey before it calls navigateToSection.
+    // Each template is only "waiting" until the user commits (taps Continue / selects / submits).
+    // Reading refs is synchronous so this is race-free even under rapid RPC bursts.
+    w.__siteFunctions.isWaitingForUserInput = () =>
+      sectionsRef.current.some((s) => {
+        switch (s.templateId) {
+          // MultiSelectOptions: waiting until Continue is tapped (multiSelectContinueStepRef set)
+          case "MultiSelectOptions":
+            return multiSelectContinueStepRef.current === null;
+          // GlassmorphicOptions: waiting until a bubble is tapped (glassmorphicCommittedRef set)
+          case "GlassmorphicOptions":
+            return !glassmorphicCommittedRef.current;
+          // TextInput: waiting until the user submits (textInputCommittedRef set)
+          case "TextInput":
+            return !textInputCommittedRef.current;
+          // RegistrationForm: always block — form submission navigates away automatically
+          case "RegistrationForm":
+            return true;
+          default:
+            return false;
+        }
+      });
 
     patchSiteFunctions();
   }, [navigateToSection]);
 
-  // Track when MultiSelectOptions fires sendSelectionIntent (Continue).
   useEffect(() => {
-    const handler = () => {
+    const handler = (ev: Event) => {
+      const detail = (ev as CustomEvent<{ progressStep?: number }>).detail;
+      const fromDetail = typeof detail?.progressStep === "number" ? detail.progressStep : null;
+      const fromSections = getTopMultiSelectProgressStep(sectionsRef.current);
+      const step =
+        fromDetail ??
+        (typeof fromSections === "number" ? fromSections : 0);
+      multiSelectContinueStepRef.current = step;
       multiSelectSubmittedRef.current = true;
     };
     window.addEventListener("multi-select-submitted", handler);
     return () => window.removeEventListener("multi-select-submitted", handler);
   }, []);
 
+  useEffect(() => {
+    const onUserSelection = () => {
+      if (sectionsRef.current.some((s) => s.templateId === "GlassmorphicOptions")) {
+        glassmorphicCommittedRef.current = true;
+      }
+    };
+    window.addEventListener("user-selection", onUserSelection);
+    return () => window.removeEventListener("user-selection", onUserSelection);
+  }, []);
+
+  useEffect(() => {
+    const onTextSubmitted = () => {
+      if (sectionsRef.current.some((s) => s.templateId === "TextInput")) {
+        textInputCommittedRef.current = true;
+      }
+    };
+    window.addEventListener("text-input-submitted", onTextSubmitted);
+    return () => window.removeEventListener("text-input-submitted", onTextSubmitted);
+  }, []);
+
   const loadingLinkedInEnteredAtRef = useRef<number | null>(null);
 
-  // Auto-render LoadingLinkedIn when the user clicks "Continue with LinkedIn".
-  // The AI often forgets to call navigateToSection for this step.
   useEffect(() => {
     const handler = () => {
+      linkedInConnectPendingRef.current = true;
       loadingLinkedInEnteredAtRef.current = Date.now();
       setGenerativeSections([
         {
           id: "loading-linkedin",
           templateId: "LoadingLinkedIn",
-          props: { message: "Connecting with LinkedIn…" },
+          props: { message: "Connecting with LinkedIn\u2026" },
         },
       ]);
       sectionsRef.current = [
         {
           id: "loading-linkedin",
           templateId: "LoadingLinkedIn",
-          props: { message: "Connecting with LinkedIn…" },
+          props: { message: "Connecting with LinkedIn\u2026" },
         },
       ];
     };
@@ -870,8 +1530,6 @@ export function usePhaseFlow() {
     return () => window.removeEventListener("linkedin-continue", handler);
   }, []);
 
-  // When on LoadingLinkedIn and AI says connection success, nudge to navigate away.
-  // Gate: don't fire while find_candidate/MCP tools are still running (~2s typical).
   const LINKEDIN_TOOLS_MIN_MS = 2500;
   const { speech } = useTeleSpeech();
   const linkedInSuccessNudgeFiredRef = useRef(false);
@@ -884,7 +1542,6 @@ export function usePhaseFlow() {
     }
     let enteredAt = loadingLinkedInEnteredAtRef.current;
     if (enteredAt == null) {
-      // Reached LoadingLinkedIn via AI navigateToSection (no linkedin-continue)
       loadingLinkedInEnteredAtRef.current = Date.now();
       enteredAt = loadingLinkedInEnteredAtRef.current;
     }
@@ -892,7 +1549,6 @@ export function usePhaseFlow() {
     if (elapsed < LINKEDIN_TOOLS_MIN_MS) return;
 
     const text = (speech ?? "").toLowerCase();
-    // Require explicit success phrases; "linked" alone matches "LinkedIn" in acknowledgment text
     const hasSuccessPhrase =
       text.includes("connected successfully") ||
       text.includes("has been connected") ||
@@ -911,8 +1567,6 @@ export function usePhaseFlow() {
     return () => clearTimeout(timer);
   }, [generativeSubsections, speech]);
 
-  // Drift detection: if the AI responds to a user signal without calling
-  // navigateToSection within the timeout, force it to include the tool call.
   useEffect(() => {
     const onThinkingStart = (event: Event) => {
       const detail = (event as CustomEvent<{ skipNavigateDrift?: boolean }>).detail;
@@ -938,7 +1592,6 @@ export function usePhaseFlow() {
     };
   }, []);
 
-  // Job Detail / Eligibility close: restore Job Center or Saved Jobs without a round-trip to the agent.
   useEffect(() => {
     const onPopJobBrowse = () => {
       setGenerativeSections((prev) => {
@@ -952,66 +1605,28 @@ export function usePhaseFlow() {
     return () => window.removeEventListener(EVENT_NAVIGATE_POP_JOB_BROWSE, onPopJobBrowse);
   }, []);
 
-  // Reset UI to initial state on real disconnect only (was connected → now not).
-  // Cache reset is handled by McpCacheProvider with the same guard.
   const wasConnectedRef = useRef(false);
   useEffect(() => {
     const onConnectionChange = (e: Event) => {
-      const connected = (e as CustomEvent<{ connected: boolean }>).detail
-        .connected;
+      const connected = (e as CustomEvent<{ connected: boolean }>).detail.connected;
       if (!connected && wasConnectedRef.current) {
+        linkedInConnectPendingRef.current = false;
+        multiSelectSubmittedRef.current = false;
+        multiSelectContinueStepRef.current = null;
+        multiSelectStepKeyRef.current = null;
+        sessionGreetingKickSentRef.current = false;
+        glassmorphicCommittedRef.current = false;
+        glassmorphicStepKeyRef.current = null;
+        textInputCommittedRef.current = false;
+        textInputStepKeyRef.current = null;
         setGenerativeSections(INITIAL_SECTIONS);
+        sectionsRef.current = INITIAL_SECTIONS;
       }
       wasConnectedRef.current = connected;
     };
     window.addEventListener("tele-connection-changed", onConnectionChange);
     return () =>
       window.removeEventListener("tele-connection-changed", onConnectionChange);
-  }, []);
-
-  // Pre-fetch candidate data for returning visitors and send the SYSTEM signal.
-  // BottomNav sends the primary signal; this is a safety-net fallback.
-  const returningVisitorNotifiedRef = useRef(false);
-  useEffect(() => {
-    if (returningVisitorNotifiedRef.current) return;
-    const session = getVisitorSession();
-    if (!session) return;
-
-    let timer: ReturnType<typeof setTimeout> | null = null;
-
-    (async () => {
-      // Sync learning state with backend (clears localStorage if backend was restarted)
-      // MUST await to prevent race condition where fetchSkills reads stale localStorage
-      const didSync = await syncLearningState(session.candidateId);
-
-      // Pre-fetch all candidate data immediately — no need to wait for AI.
-      // Skip skills/market/career if syncLearningState already fetched them
-      fetchCandidate(session.candidateId);
-      if (!didSync) {
-        fetchSkills("ai-engineer");
-        fetchMarketRelevance(session.candidateId);
-        fetchCareerGrowth(session.candidateId);
-      }
-
-      timer = setTimeout(() => {
-        if (returningVisitorNotifiedRef.current) return;
-        returningVisitorNotifiedRef.current = true;
-        informTele(
-          `[SYSTEM] Returning visitor detected. candidate_id: ${session.candidateId}. ` +
-            "Candidate data has been pre-loaded by the frontend. " +
-            'Say "Here\'s your profile." and call navigateToSection with EXACTLY this JSON: ' +
-            '{"badge":"trAIn CAREER","title":"Dashboard","subtitle":"Your Profile",' +
-            '"generativeSubsections":[{"id":"dashboard","templateId":"Dashboard","props":{}},' +
-            '{"id":"profile-home","templateId":"ProfileSheet","props":{"dashboardAnchor":true}}]}. ' +
-            "Do NOT call fetchCandidate, fetchJobs, fetchSkills, fetchMarketRelevance, or fetchCareerGrowth now — they are deferred. " +
-            "Skip qualification and registration.",
-        );
-      }, 6000);
-    })();
-
-    return () => {
-      if (timer) clearTimeout(timer);
-    };
   }, []);
 
   return { generativeSubsections };

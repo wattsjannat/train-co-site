@@ -1,5 +1,7 @@
+'use client';
+
 import { useEffect, useRef, useState } from "react";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import { useTeleSpeech } from "@/hooks/useTeleSpeech";
 import { notifyTele } from "@/utils/teleUtils";
 import { useCurrentSection } from "@/contexts/CurrentSectionContext";
@@ -30,21 +32,13 @@ const PersonShieldIcon = () => (
   </svg>
 );
 
-/**
- * Persistent top-left profile button (Figma 719:6374 normal / 719:6366 active).
- *
- * Sends `user clicked: profile` to Tele. On dashboard home the profile card is
- * already visible — the agent should acknowledge rather than navigate to bubbles.
- *
- * Pulses with a green glow when the avatar says "Tap this icon…".
- */
 export function DashboardBtn() {
   const [active, setActive] = useState(false);
   const [pulse, setPulse] = useState(false);
   const pulseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastTriggeredSpeechRef = useRef<string | null>(null);
   const { speech, isTalking } = useTeleSpeech();
-  const { currentTemplateId } = useCurrentSection();
+  const { currentTemplateId: _ } = useCurrentSection();
 
   useEffect(() => {
     const spoken = (speech ?? "").trim();

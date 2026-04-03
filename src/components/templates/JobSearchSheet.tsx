@@ -1,3 +1,4 @@
+'use client';
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 
 import { Bookmark, X } from "lucide-react";
@@ -9,9 +10,12 @@ import { mockJobs } from "@/mocks/jobSearchData";
 import { notifyTele, informTele } from "@/utils/teleUtils";
 import { useSpeechFallbackNudge } from "@/hooks/useSpeechFallbackNudge";
 import { useVoiceActions } from "@/hooks/useVoiceActions";
-import type { JobListing } from "@/types/flow";
-import { cn } from "@/lib/utils";
+import type { BackendJobItem, JobListing } from "@/types/flow";
+import { cn } from "@/platform/utils";
 import { navigateClientToDashboardLanding, setLastBrowseScreen, navigateBackFromJobSearch } from "@/utils/clientDashboardNavigate";
+import { useMcpCache } from "@/contexts/McpCacheContext";
+import { resolveJobsArray } from "@/platform/mcpBridge";
+import { mapBackendJob, enrichJobFromCache } from "@/components/templates/CardStackTemplate";
 
 const TABS: { category: FitCategory; label: string }[] = [
   { category: "good-fit", label: "Good fit" },
@@ -39,7 +43,26 @@ function ensureCardFields(job: JobListing): Required<Pick<JobListing, "matchScor
   };
 }
 
+/** Same MCP row mapping as CardStack — without this, `match_score` on wrapper + nested `job` yields empty buckets & 0% badges. */
+function listingsFromUnknownJobRows(rows: unknown[]): JobListing[] {
+  const out: JobListing[] = [];
+  for (const item of rows) {
+    if (!item || typeof item !== "object") continue;
+    const mapped = mapBackendJob(item as BackendJobItem);
+    if (mapped) {
+      out.push(mapped);
+      continue;
+    }
+    const o = item as Record<string, unknown>;
+    if (typeof o.id === "string" && o.id && typeof o.title === "string" && o.title) {
+      out.push(item as JobListing);
+    }
+  }
+  return out;
+}
+
 export function JobSearchSheet({ jobs: propJobs, activeTab: initialTab, showSavedOnly: initialSavedOnly = false }: JobSearchSheetProps) {
+  const cache = useMcpCache();
   const [activeTab, setActiveTab] = useState<FitCategory>(initialTab ?? "good-fit");
   const [savedOnly, setSavedOnly] = useState(Boolean(initialSavedOnly));
   /** Per-card bookmark state; seed with mock saved ids so demo shortlist matches Profile → Saved Jobs. */
@@ -70,9 +93,21 @@ export function JobSearchSheet({ jobs: propJobs, activeTab: initialTab, showSave
   });
 
   const browseJobs = useMemo(() => {
-    if (propJobs && propJobs.length > 0) return propJobs.map(ensureCardFields);
-    return (mockJobs as unknown as JobListing[]).map(ensureCardFields);
-  }, [propJobs]);
+    let listings: JobListing[] = [];
+    if (propJobs && propJobs.length > 0) {
+      listings = listingsFromUnknownJobRows(propJobs as unknown[]);
+    }
+    if (listings.length === 0 && cache.jobs) {
+      listings = listingsFromUnknownJobRows(resolveJobsArray(cache.jobs));
+    }
+    if (listings.length === 0) {
+      return (mockJobs as unknown as JobListing[]).map(ensureCardFields);
+    }
+    const merged = cache.jobs
+      ? listings.map((j) => enrichJobFromCache(j, cache.jobs))
+      : listings;
+    return merged.map(ensureCardFields);
+  }, [propJobs, cache.jobs]);
 
   const displayJobs = useMemo(() => {
     if (!savedOnly) return browseJobs;
@@ -91,6 +126,18 @@ export function JobSearchSheet({ jobs: propJobs, activeTab: initialTab, showSave
     }
     return buckets;
   }, [displayJobs]);
+
+  /** Default tab is Good fit, but MCP rows often land in Stretch / Grow into — avoid an empty first paint when the model did not set activeTab. */
+  useEffect(() => {
+    if (savedOnly || initialTab) return;
+    if (categorized[activeTab].length > 0) return;
+    for (const t of TABS) {
+      if (categorized[t.category].length > 0) {
+        setActiveTab(t.category);
+        return;
+      }
+    }
+  }, [categorized, savedOnly, initialTab, activeTab]);
 
   const insightSentRef = useRef(false);
   useEffect(() => {

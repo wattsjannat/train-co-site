@@ -1,7 +1,12 @@
+'use client';
 interface ProgressBarProps {
+  /** Percentage width 0–100. */
   percent: number;
+  /** Color or gradient for the filled portion. */
   color: string;
+  /** Track height class. Default "h-3". */
   heightClass?: string;
+  /** Track border-radius class. Default "rounded-full". */
   radiusClass?: string;
 }
 
@@ -20,5 +25,3 @@ export function ProgressBar({
     </div>
   );
 }
-
-export default ProgressBar;

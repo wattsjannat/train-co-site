@@ -1,11 +1,11 @@
+'use client';
+
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 
 interface CurrentSectionValue {
   currentTemplateId: string | undefined;
   currentSectionId: string | undefined;
-  /** currentTemplateId with nested-view override applied. Use this for visibility decisions. */
   effectiveTemplateId: string | undefined;
-  /** Nested components call this to announce they've taken over the screen. */
   setOverrideTemplateId: (id: string | undefined) => void;
 }
 

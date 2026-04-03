@@ -1,10 +1,11 @@
+'use client';
+
 import { useState, useEffect, useRef, useCallback, Suspense } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { Send, Loader2, Plus, Mic } from "lucide-react";
+import { motion, AnimatePresence } from "motion/react";
+import { Loader2 } from "lucide-react";
 import { useChatHistory, type ChatMessage } from "@/contexts/ChatHistoryContext";
-import { MiniProgress } from "@/components/cards/MiniProgress";
+import { MiniProgress } from "@/components/MiniProgress";
 import { TEMPLATE_REGISTRY } from "@/data/templateRegistry";
-import { sendSelectionIntent } from "@/utils/teleIntent";
 import type { GenerativeSection } from "@/types/flow";
 
 interface TalentChatModeProps {
@@ -49,12 +50,6 @@ function ChatInputBar({
         className="flex-1 bg-transparent text-sm text-white placeholder-white/40 outline-none disabled:cursor-wait"
       />
       <div className="flex items-center gap-2">
-        <button
-          className="flex items-center justify-center hover:opacity-70 transition-opacity"
-          aria-label="Voice input"
-        >
-          <img src="/icons/mic.svg" alt="Microphone" className="w-6 h-6" />
-        </button>
         <AnimatePresence mode="wait">
           {waiting ? (
             <motion.div
@@ -74,10 +69,14 @@ function ChatInputBar({
               exit={{ opacity: 0, scale: 0.8 }}
               onClick={submit}
               disabled={!value.trim()}
-              className="flex items-center justify-center transition-opacity disabled:opacity-50"
+              className="flex items-center justify-center transition-opacity disabled:opacity-50 w-9 h-9 rounded-full"
+              style={{ background: "var(--accent)" }}
               aria-label="Send message"
             >
-              <img src="/icons/send-icon.svg" alt="Send" className="w-8 h-8" />
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                <path d="M22 2L11 13" stroke="#18181b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                <path d="M22 2L15 22L11 13L2 9L22 2Z" stroke="#18181b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
             </motion.button>
           )}
         </AnimatePresence>
@@ -88,9 +87,8 @@ function ChatInputBar({
 
 function TemplateCard({ template }: { template: NonNullable<ChatMessage["template"]> }) {
   const TemplateComponent = TEMPLATE_REGISTRY[template.templateId];
-  
+
   if (!TemplateComponent) {
-    console.warn(`Template ${template.templateId} not found in registry`);
     return null;
   }
 
@@ -104,13 +102,12 @@ function TemplateCard({ template }: { template: NonNullable<ChatMessage["templat
           <Loader2 className="animate-spin text-white/50" size={24} />
         </div>
       }>
-        {/* Chat mode wrapper - converts absolute overlay templates to inline cards */}
-        <div 
+        <div
           className="chat-mode-template-wrapper"
           style={{
-            position: 'relative',
-            width: '100%',
-            minHeight: '500px',
+            position: "relative",
+            width: "100%",
+            minHeight: "500px",
           }}
         >
           <style>{`
@@ -147,7 +144,6 @@ function CandidateDataCard({ data }: { data: NonNullable<ChatMessage["candidateD
         border: "1px solid rgba(255,255,255,0.1)",
       }}
     >
-      {/* Header with avatar and name */}
       <div className="flex items-center gap-3 mb-4">
         <div
           className="w-12 h-12 rounded-full flex items-center justify-center text-sm font-semibold"
@@ -165,7 +161,6 @@ function CandidateDataCard({ data }: { data: NonNullable<ChatMessage["candidateD
         </div>
       </div>
 
-      {/* Experience */}
       {data.experience && data.experience.length > 0 && (
         <div className="mb-3">
           <p className="text-white/80 text-xs font-semibold mb-2">Work Experience</p>
@@ -178,7 +173,6 @@ function CandidateDataCard({ data }: { data: NonNullable<ChatMessage["candidateD
         </div>
       )}
 
-      {/* Education */}
       {data.education && data.education.length > 0 && (
         <div>
           <p className="text-white/80 text-xs font-semibold mb-2">Education</p>
@@ -217,7 +211,6 @@ function ChatView({
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
-      {/* Progress bar */}
       <div className="px-5 sm:px-12 pt-4 pb-3 flex justify-center">
         <MiniProgress step={0} total={4} />
       </div>
@@ -248,16 +241,9 @@ function ChatView({
                 </div>
               ) : (
                 <div className="flex justify-start flex-col gap-3 max-w-[520px]">
-                  {/* Only show text if it's not empty (template-only messages have no text) */}
                   {msg.text && <p className="chat-message-body text-sm leading-relaxed">{msg.text}</p>}
-                  
-                  {/* Candidate Data Card */}
                   {msg.candidateData && <CandidateDataCard data={msg.candidateData} />}
-                  
-                  {/* Template Card (RegistrationForm, Dashboard, etc.) - THIS WAS MISSING! */}
                   {msg.template && <TemplateCard template={msg.template} />}
-                  
-                  {/* Options (industry chips: white text, white border, dark bg per screenshot) */}
                   {msg.options && msg.options.length > 0 && (
                     <div className="flex flex-wrap gap-2">
                       {msg.options.map((option) => (
@@ -298,22 +284,24 @@ function ChatView({
         </AnimatePresence>
       </div>
 
-      <div className="relative z-20 px-5 sm:px-12 pt-3 flex-shrink-0 safe-bottom" style={{ paddingBottom: "max(80px, calc(72px + env(safe-area-inset-bottom, 0px)))" }}>
+      <div
+        className="relative z-20 px-5 sm:px-12 pt-3 flex-shrink-0 safe-bottom"
+        style={{ paddingBottom: "max(80px, calc(72px + env(safe-area-inset-bottom, 0px)))" }}
+      >
         <ChatInputBar
           onSend={onSend}
           waiting={isTyping || !sessionReady}
-          placeholder={!sessionReady ? "Connecting to AI…" : "Type your message"}
+          placeholder={!sessionReady ? "Connecting to AI\u2026" : "Type your message"}
         />
       </div>
     </div>
   );
 }
 
-export function TalentChatMode({ onSend, sessionReady = true, sections }: TalentChatModeProps) {
+export function TalentChatMode({ onSend, sessionReady = true, sections: _ }: TalentChatModeProps) {
   const { messages, addMessage } = useChatHistory();
   const [isTyping, setIsTyping] = useState(false);
 
-  // Mute all audio/video and hide avatar when chat mode is active
   useEffect(() => {
     const muteElement = (el: HTMLMediaElement) => {
       el.muted = true;
@@ -326,47 +314,14 @@ export function TalentChatMode({ onSend, sessionReady = true, sections }: Talent
       });
     };
 
-    const hideAvatarLayers = () => {
-      // Hide avatar video layer
-      const bgLayer = document.querySelector('[data-layer="bg"]') as HTMLElement;
-      if (bgLayer) {
-        bgLayer.style.display = 'none';
-      }
-      
-      const fw = (window as any).UIFramework;
-      if (!fw) return;
-      
-      // Mute avatar audio (call once)
-      if (typeof fw.setAvatarVolume === "function") {
-        (fw.setAvatarVolume as (v: number) => void)(0);
-      }
-      if (typeof fw.setAvatarVideoMuted === "function") {
-        (fw.setAvatarVideoMuted as (v: boolean) => void)(true);
-      }
-      
-      // Hide background layer
-      if (typeof fw.hideBgLayer === "function") {
-        (fw.hideBgLayer as () => void)();
-      }
-      
-      // Disable lightboard effect
-      if (typeof fw.deactivateVisualInversion === "function") {
-        (fw.deactivateVisualInversion as () => void)();
-      }
-    };
-
-    // Initial mute - call once on mount
     muteAllMedia();
-    hideAvatarLayers();
 
-    // Watch for new audio/video elements being added to the DOM
     const observer = new MutationObserver((mutations) => {
       for (const mutation of mutations) {
         mutation.addedNodes.forEach((node) => {
           if (node instanceof HTMLMediaElement) {
             muteElement(node);
           } else if (node instanceof HTMLElement) {
-            // Check if the added element contains audio/video elements
             node.querySelectorAll("audio, video").forEach((el) => {
               muteElement(el as HTMLMediaElement);
             });
@@ -375,27 +330,14 @@ export function TalentChatMode({ onSend, sessionReady = true, sections }: Talent
       }
     });
 
-    // Observe the entire document for new media elements
-    observer.observe(document.body, {
-      childList: true,
-      subtree: true,
-    });
+    observer.observe(document.body, { childList: true, subtree: true });
 
     return () => {
       observer.disconnect();
-      
-      // Restore avatar visibility when exiting chat mode
-      const bgLayer = document.querySelector('[data-layer="bg"]') as HTMLElement;
-      if (bgLayer) {
-        bgLayer.style.display = '';
-      }
     };
   }, []);
 
-  // Monitor typing state from context
   useEffect(() => {
-    // We can detect if AI is responding by checking if there's a recent user message
-    // without a following assistant message
     if (messages.length > 0) {
       const lastMsg = messages[messages.length - 1];
       if (lastMsg.role === "user") {
@@ -434,11 +376,8 @@ export function TalentChatMode({ onSend, sessionReady = true, sections }: Talent
       className="absolute inset-0 z-[55] flex flex-col overflow-hidden"
       style={{ background: "var(--bg)" }}
     >
-      {/* Ellipse glow (5th screenshot) – behind content */}
       <div className="chat-mode-ellipse" aria-hidden="true" />
-      {/* Gradient overlay (1st screenshot) – bottom darkening */}
       <div className="chat-mode-gradient-overlay" aria-hidden="true" />
-      {/* Chat content wrapper – ensures content sits above decorative layers */}
       <div className="relative z-10 flex-1 flex flex-col min-h-0">
         <ChatView
           messages={messages}

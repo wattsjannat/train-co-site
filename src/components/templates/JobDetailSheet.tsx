@@ -1,9 +1,8 @@
+'use client';
 import { useMemo, useState, useEffect, useRef } from "react";
 import {
-
   ArrowRight,
   MapPin,
-
   Play,
   Sparkles,
   RefreshCw,
@@ -13,7 +12,7 @@ import {
   Bookmark,
   X,
 } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence } from "motion/react";
 
 import { informTele, notifyTele, popJobBrowseScreen } from "@/utils/teleUtils";
 import { navigateBackToBrowseScreen } from "@/utils/clientDashboardNavigate";
@@ -22,7 +21,7 @@ import { useVoiceActions } from "@/hooks/useVoiceActions";
 import { categorizeFit, type FitCategory } from "@/utils/categorizeFit";
 import { FitScoreBadge } from "@/components/ui/FitScoreBadge";
 import { useMcpCache } from "@/contexts/McpCacheContext";
-import { resolveJobsArray } from "@/lib/mcpBridge";
+import { lookupScoredJobFromCache, pickJobDescription } from "@/utils/jobCacheLookup";
 import { getSavedJobById } from "@/mocks/savedJobsData";
 import type { BackendSkillGap } from "@/types/flow";
 import { LearningPathTemplate } from "@/components/templates/LearningPathTemplate";
@@ -89,32 +88,6 @@ function CompanyLogoMark({ src, company }: { src?: string; company: string }) {
   );
 }
 
-function lookupFromCache(
-  jobId: string | undefined,
-  title: string | undefined,
-  company: string | undefined,
-  jobs: unknown,
-): Record<string, unknown> | null {
-  const arr = resolveJobsArray(jobs);
-  const tLower = title?.toLowerCase();
-  const cLower = company?.toLowerCase();
-
-  for (const item of arr) {
-    if (!item || typeof item !== "object") continue;
-    const rec = item as Record<string, unknown>;
-    const inner =
-      rec.job && typeof rec.job === "object"
-        ? (rec.job as Record<string, unknown>)
-        : rec;
-    const id = (inner.job_id ?? inner.id ?? inner.jobId) as string | undefined;
-    if (jobId && id === jobId) return inner;
-    const iTitle = (inner.title as string | undefined)?.toLowerCase();
-    const iCompany = ((inner.company_name ?? inner.company) as string | undefined)?.toLowerCase();
-    if (tLower && iTitle === tLower && (!cLower || iCompany === cLower)) return inner;
-  }
-  return null;
-}
-
 export function JobDetailSheet(props: JobDetailSheetProps) {
   const cache = useMcpCache();
   const [showLearningPath, setShowLearningPath] = useState(false);
@@ -126,8 +99,17 @@ export function JobDetailSheet(props: JobDetailSheetProps) {
   const cached = useMemo(() => {
     if (props.description || props.location || props.salaryRange || props.salaryMin) return null;
     if (!cache.jobs) return null;
-    return lookupFromCache(props.jobId, props.title, props.company, cache.jobs);
-  }, [props.jobId, props.title, props.company, props.description, props.location, props.salaryRange, props.salaryMin, cache.jobs]);
+    return lookupScoredJobFromCache(props.jobId, props.title, props.company, cache.jobs);
+  }, [
+    props.jobId,
+    props.title,
+    props.company,
+    props.description,
+    props.location,
+    props.salaryRange,
+    props.salaryMin,
+    cache.jobs,
+  ]);
 
   /** Profile → Saved Jobs uses mock ids (saved-1, …) not present in MCP job cache — merge local mock like cache hit. */
 
@@ -148,7 +130,11 @@ export function JobDetailSheet(props: JobDetailSheetProps) {
     fmtSalary(props.salaryMin, props.salaryMax) ??
     fmtSalary(cached?.salary_min as number | undefined, cached?.salary_max as number | undefined) ??
     savedMock?.salaryRange;
-  const description = props.description ?? (cached?.description as string | undefined) ?? savedMock?.description;
+  const description =
+    props.description ??
+    (cached ? pickJobDescription(cached as Record<string, unknown>) : undefined) ??
+    (cached?.description as string | undefined) ??
+    savedMock?.description;
   const companyLogo =
     props.companyLogo ??
     (cached?.company_logo as string | undefined) ??
@@ -160,8 +146,15 @@ export function JobDetailSheet(props: JobDetailSheetProps) {
     (cached?.match_score as number | undefined) ??
     (cached?.score as number | undefined) ??
     savedMock?.matchScore;
+  const fitFromCache =
+    cached?.fit_category === "good-fit" ||
+    cached?.fit_category === "stretch" ||
+    cached?.fit_category === "grow-into"
+      ? (cached.fit_category as FitCategory)
+      : undefined;
   const fitCategory =
     props.fitCategory ??
+    fitFromCache ??
     savedMock?.fitCategory ??
     (matchScore != null ? categorizeFit(matchScore).category : undefined);
   const aiSummary = props.aiSummary ?? (cached?.ai_summary as string | undefined) ?? savedMock?.aiSummary;
@@ -325,7 +318,7 @@ export function JobDetailSheet(props: JobDetailSheetProps) {
                 )}
               </div>
 
-              {/* Summary */}
+              {/* Summary — pif_v1/trainco-v1 JobDetailSheet */}
               {(postingSummary ?? description) && (
                 <div data-testid="job-detail-sheet-description" className="flex flex-col gap-2.5">
                   <p className="text-[var(--text-primary)] text-base font-bold">Summary</p>

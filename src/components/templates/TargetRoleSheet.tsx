@@ -1,3 +1,4 @@
+'use client';
 import { useEffect, useMemo, useState } from "react";
 import { Crosshair, ArrowRight, Sparkles } from "lucide-react";
 import { BaseSheetLayout } from "@/components/ui/BaseSheetLayout";
@@ -259,4 +260,3 @@ function SkillRow({ skill, onTap }: { skill: TargetRoleSkill; onTap?: () => void
   }
   return <div className={cls} style={bg}>{content}</div>;
 }
-

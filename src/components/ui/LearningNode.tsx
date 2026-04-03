@@ -1,3 +1,4 @@
+'use client';
 import type { LearningPathNode } from "@/utils/computeProfileMetrics";
 
 const NODE_STYLES: Record<LearningPathNode["status"], { ring: string; bg: string; text: string }> = {

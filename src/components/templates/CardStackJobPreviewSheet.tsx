@@ -1,14 +1,16 @@
+'use client';
 import { useCallback, useMemo } from "react";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import { X, MapPin, Play, Ban, Check } from "lucide-react";
 import { useMcpCache } from "@/contexts/McpCacheContext";
-import { resolveJobsArray } from "@/lib/mcpBridge";
 import { notifyTele } from "@/utils/teleUtils";
 import { sendJobClosedIntent } from "@/utils/teleIntent";
 import { useSpeechFallbackNudge } from "@/hooks/useSpeechFallbackNudge";
 import { useVoiceActions } from "@/hooks/useVoiceActions";
 import { categorizeFit, type FitCategory } from "@/utils/categorizeFit";
 import { FitScoreBadge } from "@/components/ui/FitScoreBadge";
+import { lookupScoredJobFromCache, pickJobDescription } from "@/utils/jobCacheLookup";
+import { coerceMatchScore } from "@/utils/scoredJobFields";
 
 const SaudiRiyalIcon = () => (
   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" className="shrink-0 text-[var(--text-secondary)]">
@@ -17,32 +19,6 @@ const SaudiRiyalIcon = () => (
     </text>
   </svg>
 );
-
-function lookupFromCache(
-  jobId: string | undefined,
-  title: string | undefined,
-  company: string | undefined,
-  jobs: unknown,
-): Record<string, unknown> | null {
-  const arr = resolveJobsArray(jobs);
-  const tLower = title?.toLowerCase();
-  const cLower = company?.toLowerCase();
-
-  for (const item of arr) {
-    if (!item || typeof item !== "object") continue;
-    const rec = item as Record<string, unknown>;
-    const inner =
-      rec.job && typeof rec.job === "object"
-        ? (rec.job as Record<string, unknown>)
-        : rec;
-    const id = (inner.job_id ?? inner.id ?? inner.jobId) as string | undefined;
-    if (jobId && id === jobId) return inner;
-    const iTitle = (inner.title as string | undefined)?.toLowerCase();
-    const iCompany = ((inner.company_name ?? inner.company) as string | undefined)?.toLowerCase();
-    if (tLower && iTitle === tLower && (!cLower || iCompany === cLower)) return inner;
-  }
-  return null;
-}
 
 function fmtSalary(min?: number, max?: number): string | undefined {
   if (min == null || max == null) return undefined;
@@ -64,13 +40,12 @@ export interface CardStackJobPreviewSheetProps {
   fitCategory?: FitCategory;
   aiSummary?: string;
   postedAt?: string;
-  /** When omitted (e.g. AI-driven section only), closing notifies via `sendJobClosedIntent`. */
   onClose?: () => void;
 }
 
 /**
- * Bottom sheet for job preview from CardStack — Design System node 6958:15709.
- * Distinct from full-screen {@link JobDetailSheet} (browse / job search flow).
+ * Bottom sheet for job preview from CardStack — matches pif_v1/trainco-v1
+ * `CardStackJobPreviewSheet` (Figma 6958:15709): Summary, Day in the life, insight, No thanks / I'm interested.
  */
 export function CardStackJobPreviewSheet(props: CardStackJobPreviewSheetProps) {
   const onCloseProp = props.onClose;
@@ -78,29 +53,61 @@ export function CardStackJobPreviewSheet(props: CardStackJobPreviewSheetProps) {
 
   const cached = useMemo(() => {
     if (!cache.jobs) return null;
-    return lookupFromCache(props.jobId, props.title, props.company, cache.jobs);
+    return lookupScoredJobFromCache(props.jobId, props.title, props.company, cache.jobs);
   }, [props.jobId, props.title, props.company, cache.jobs]);
 
   const title = props.title ?? (cached?.title as string | undefined) ?? "Job";
-  const company = props.company ?? (cached?.company_name as string | undefined) ?? (cached?.company as string | undefined) ?? "";
+  const company =
+    props.company ??
+    (cached?.company_name as string | undefined) ??
+    (cached?.company as string | undefined) ??
+    "";
   const location = props.location ?? (cached?.location as string | undefined) ?? "";
   const salaryRange =
     props.salaryRange ??
     fmtSalary(props.salaryMin, props.salaryMax) ??
     fmtSalary(cached?.salary_min as number | undefined, cached?.salary_max as number | undefined) ??
     (cached?.salary_range as string | undefined);
-  const description = props.description ?? (cached?.description as string | undefined);
+
+  const descriptionFromPropsOrCache =
+    props.description ?? pickJobDescription(cached as Record<string, unknown> | null) ?? (cached?.description as string | undefined);
+
   const matchScore =
-    props.matchScore ?? (cached?.match_score as number | undefined) ?? (cached?.score as number | undefined);
-  const fitCategory =
-    props.fitCategory ?? (matchScore != null ? categorizeFit(matchScore).category : undefined);
-  const aiSummary = props.aiSummary ?? (cached?.ai_summary as string | undefined) ?? (cached?.aiSummary as string | undefined);
+    coerceMatchScore(props.matchScore) ??
+    coerceMatchScore(cached?.match_score) ??
+    coerceMatchScore(cached?.score) ??
+    coerceMatchScore(cached?.match_percentage);
+
+  const fitCategory: FitCategory | undefined =
+    props.fitCategory ??
+    (cached?.fit_category === "good-fit" ||
+    cached?.fit_category === "stretch" ||
+    cached?.fit_category === "grow-into"
+      ? cached.fit_category
+      : undefined) ??
+    (matchScore != null ? categorizeFit(matchScore).category : undefined);
+
+  const aiSummary =
+    props.aiSummary ??
+    (cached?.ai_summary as string | undefined) ??
+    (cached?.aiSummary as string | undefined) ??
+    (typeof cached?.summary === "string" ? cached.summary : undefined);
+
   const companyLogo = props.companyLogo ?? (cached?.company_logo as string | undefined);
 
   const isGoodFit = fitCategory === "good-fit";
   const insightPrefix =
     isGoodFit ? "Strong fit." : fitCategory === "grow-into" ? "Grow into this." : "Close match.";
-  const summaryText = description ?? aiSummary ?? "No summary available for this role yet.";
+  const normalizedAiSummary = useMemo(() => {
+    if (!aiSummary) return undefined;
+    const lower = aiSummary.trim().toLowerCase();
+    const knownPrefixes = ["strong fit.", "grow into this.", "close match."];
+    if (knownPrefixes.some((p) => lower.startsWith(p))) {
+      return aiSummary.trim().replace(/^(strong fit\.|grow into this\.|close match\.)\s*/i, "");
+    }
+    return aiSummary;
+  }, [aiSummary]);
+  const summaryText = descriptionFromPropsOrCache ?? aiSummary ?? "No summary available for this role yet.";
 
   const close = useCallback(() => {
     if (onCloseProp) {
@@ -126,8 +133,7 @@ export function CardStackJobPreviewSheet(props: CardStackJobPreviewSheetProps) {
     matchMode: "any",
     instruction:
       `[SYSTEM] CardStack job preview is open for "${title}" at "${company}". ` +
-      "Acknowledge in one sentence. FORBIDDEN: navigateToSection with JobDetailSheet, search_knowledge for JobDetailSheet payload, " +
-      "or fetchCareerGrowth to drive full job detail — the preview sheet already shows the role.",
+      "Acknowledge in one sentence. FORBIDDEN: navigateToSection with JobDetailSheet for full detail — the preview sheet already shows the role.",
     delayMs: 1000,
   });
 
@@ -176,7 +182,6 @@ export function CardStackJobPreviewSheet(props: CardStackJobPreviewSheetProps) {
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex flex-col gap-6 p-4">
-          {/* Header — Figma 6958:15710–15720 */}
           <div className="flex flex-col gap-0 w-full">
             <div className="flex gap-4 items-center w-full">
               <div className="flex gap-4 items-center min-w-0 flex-1">
@@ -212,7 +217,6 @@ export function CardStackJobPreviewSheet(props: CardStackJobPreviewSheetProps) {
             </div>
           </div>
 
-          {/* Salary / location + fit score — Figma 6958:15721–15734 */}
           <div className="flex items-center justify-between gap-4 w-full">
             <div className="flex flex-col gap-2 items-start min-w-0">
               {salaryRange && (
@@ -240,13 +244,13 @@ export function CardStackJobPreviewSheet(props: CardStackJobPreviewSheetProps) {
             )}
           </div>
 
-          {/* Summary */}
           <div className="flex flex-col gap-2 items-start w-full">
             <p className="text-base font-bold leading-6 text-[#f0f4f2]">Summary</p>
-            <p className="text-sm font-normal leading-5 text-[var(--text-secondary)] w-full">{summaryText}</p>
+            <p className="text-sm font-normal leading-5 text-[var(--text-secondary)] w-full whitespace-pre-wrap">
+              {summaryText}
+            </p>
           </div>
 
-          {/* A Day in the life */}
           <div className="flex flex-col gap-2 items-start w-full">
             <p className="text-base font-bold leading-6 text-[#f0f4f2]">A Day in the life</p>
             <div className="relative w-full aspect-video rounded-2xl overflow-hidden bg-[var(--surface-card)]">
@@ -259,7 +263,6 @@ export function CardStackJobPreviewSheet(props: CardStackJobPreviewSheetProps) {
             </div>
           </div>
 
-          {/* Insight + CTAs — Figma 6958:15743–15753 */}
           <div className="flex flex-col gap-2 items-start w-full">
             {aiSummary && (
               <div
@@ -281,7 +284,7 @@ export function CardStackJobPreviewSheet(props: CardStackJobPreviewSheetProps) {
               >
                 <p className="text-sm leading-[22.75px] text-[rgba(240,244,242,0.9)]">
                   <span className="font-bold">{insightPrefix}</span>{" "}
-                  <span className="font-normal">{aiSummary}</span>
+                  <span className="font-normal">{normalizedAiSummary ?? aiSummary}</span>
                 </p>
               </div>
             )}

@@ -1,5 +1,7 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+'use client';
+
+import { useEffect, useState, type ReactNode } from "react";
+import { AnimatePresence } from "motion/react";
 import { BottomNav } from "./BottomNav";
 import { TeleSpeechBubble } from "./TeleSpeechBubble";
 import { DevToolbar } from "./DevToolbar";
@@ -10,6 +12,7 @@ import { useTeleState } from "@/hooks/useTeleState";
 import { useCurrentSection } from "@/contexts/CurrentSectionContext";
 import { useVisualViewportBottomInset } from "@/hooks/useVisualViewportBottomInset";
 import type { GenerativeSection } from "@/types/flow";
+import { BackgroundLayer } from "@/components/voice/BackgroundLayer";
 
 const ONBOARDING_TEMPLATES = new Set([
   "EmptyScreen", "WelcomeLanding", "GlassmorphicOptions", "MultiSelectOptions",
@@ -17,10 +20,7 @@ const ONBOARDING_TEMPLATES = new Set([
   "CandidateSheet", "CardStack",
 ]);
 
-/** Dashboard + Learning buttons are visible on every non-onboarding template (ONBOARDING_TEMPLATES already hides them during qualification). */
 const HIDE_TOP_PERSISTENT_NAV = new Set<string>([]);
-
-/** Job posting detail has its own CTAs — hide the global tele/voice/chat pill so it does not overlap Save / eligibility. */
 const HIDE_BOTTOM_NAV = new Set(["JobDetailSheet"]);
 
 interface BaseLayoutProps {
@@ -28,18 +28,6 @@ interface BaseLayoutProps {
   sections?: GenerativeSection[];
 }
 
-/**
- * Persistent outer shell — rendered once in App.tsx and never re-mounted.
- *
- * Owns everything that must survive template and step transitions:
- *  - Static /avatar.jpg background (fades out when Tele connects; UIFramework
- *    BG-LAYER takes over with the LiveAvatar live stream)
- *  - Green radial glow (always behind the avatar)
- *  - Top / bottom edge gradient fades (above template content z-40)
- *  - BottomNav (never unmounted so connection state persists across templates)
- *
- * Templates rendered via DynamicSectionLoader float as children above these layers.
- */
 export function BaseLayout({ children, sections = [] }: BaseLayoutProps) {
   const { connectionState, connected } = useTeleState();
   const [chatMode, setChatMode] = useState(false);
@@ -68,7 +56,6 @@ export function BaseLayout({ children, sections = [] }: BaseLayoutProps) {
     const stripInjectedCtaStyles = (scope?: ParentNode) => {
       const targets = (scope ?? document).querySelectorAll<HTMLElement>(".no-lightboard");
       targets.forEach((el) => {
-        // Preserve intentional disabled visuals from component state.
         if (el instanceof HTMLButtonElement && el.disabled) return;
         const tid = el.getAttribute("data-testid") ?? "";
         const isEdgeGradient =
@@ -76,8 +63,8 @@ export function BaseLayout({ children, sections = [] }: BaseLayoutProps) {
         el.style.removeProperty("background-color");
         el.style.removeProperty("border-color");
         el.style.removeProperty("box-shadow");
+        el.style.removeProperty("opacity");
         if (isEdgeGradient) {
-          // Gradient is defined in index.css (!important). Only drop injected `none` so CSS shows through.
           if (el.style.backgroundImage === "none") {
             el.style.removeProperty("background-image");
           }
@@ -118,38 +105,30 @@ export function BaseLayout({ children, sections = [] }: BaseLayoutProps) {
     return () => observer.disconnect();
   }, []);
 
-
-
   const handleSendChatMessage = (text: string) => {
-    const fw = (window as any).UIFramework;
+    const fw = (window as unknown as { UIFramework?: { TellTele?: (t: string) => void } }).UIFramework;
     if (!fw) return;
     if (typeof fw.TellTele === "function") {
-      (fw.TellTele as (t: string) => void)(text);
+      fw.TellTele(text);
     }
   };
 
+  // Suppress unused warning — connectionState is read for side-effects
+  void connectionState;
+
   return (
-    <div data-testid="base-layout" className="relative w-screen h-[100svh] overflow-hidden bg-[var(--bg)]">
+    <div
+      data-testid="base-layout"
+      className="relative isolate w-screen h-[100svh] overflow-hidden bg-[var(--bg)]"
+    >
+      {/*
+        LiveKit avatar video + hero still (see BackgroundLayer). Uses z-0 inside isolate so
+        it paints above this shell’s background. Replace files under public/avatar/ for art.
+      */}
+      <div data-testid="base-layout-avatar-photo" className="absolute inset-0 z-0 overflow-hidden">
+        <BackgroundLayer />
+      </div>
 
-      {/* ── Static avatar photo — shown when disconnected regardless of mode ─── */}
-      <motion.div
-        data-testid="base-layout-avatar-photo"
-        className="absolute inset-0 overflow-hidden"
-        animate={{ zIndex: !connected ? 1 : -2 }}
-        transition={{
-          delay:0.25,
-          duration: 0.2,
-          ease: "easeInOut",
-        }}
-      >
-        <img
-          src="/Jaya.png"
-          alt="trAIn — AI career concierge"
-          className="absolute right-[0px] top-[-38px] h-[102%] w-auto max-w-none pointer-events-none select-none"
-        />
-      </motion.div>
-
-      {/* ── Edge gradient fades (above template layer z-40; speech 60, nav 100) */}
       <div
         data-testid="base-layout-gradient-bottom"
         className="absolute left-0 right-0 bottom-0 z-[10] pointer-events-none no-lightboard"
@@ -161,17 +140,17 @@ export function BaseLayout({ children, sections = [] }: BaseLayoutProps) {
         style={{ height: "29%" }}
       />
 
-      {/* ── Persistent speech overlay — shows what Tele is saying for video mode ────────── */}
       {!chatMode && <TeleSpeechBubble />}
 
-      {/* ── Template content ──────────────────────────────────────────────── */}
       {!chatMode && (
-        <div data-testid="base-layout-content" className="absolute inset-0">
+        <div
+          data-testid="base-layout-content"
+          className="absolute inset-0 z-[1] flex min-h-0 flex-col"
+        >
           {children}
         </div>
       )}
 
-      {/* ── Persistent nav buttons — above all template layers ────────────── */}
       {!chatMode && showNavButtons && (
         <div className="fixed inset-0 pointer-events-none no-lightboard" style={{ zIndex: 120 }}>
           <DashboardBtn />
@@ -179,7 +158,6 @@ export function BaseLayout({ children, sections = [] }: BaseLayoutProps) {
         </div>
       )}
 
-      {/* ── Chat Mode Overlay ─────────────────────────────────────────────── */}
       <AnimatePresence>
         {chatMode && (
           <TalentChatMode
@@ -191,12 +169,10 @@ export function BaseLayout({ children, sections = [] }: BaseLayoutProps) {
         )}
       </AnimatePresence>
 
-      {/* ── Dev toolbar + BottomNav — pinned at bottom (BottomNav hidden on some full-bleed sheets) ──── */}
       <div
         data-testid="base-layout-bottom-nav"
         className="absolute left-1/2 -translate-x-1/2 z-[115] flex flex-col items-center gap-2"
         style={{
-          /* Hug the visual bottom: safe-area covers the home indicator; small margin + vv for browser chrome */
           bottom:
             "calc(12px + env(safe-area-inset-bottom, 0px) + var(--vv-bottom-inset, 0px))",
         }}

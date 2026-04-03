@@ -1,5 +1,6 @@
+'use client';
 import { useState, useEffect, useCallback, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence } from "motion/react";
 import { CheckCircle, ArrowRight } from "lucide-react";
 import {
   getLinkedInPlaceholderEmail,
@@ -47,8 +48,8 @@ interface RegistrationFormProps {
  *   User clicks "Continue with LinkedIn" OR says a LinkedIn intent by voice.
  *   → linkedin-continue + sendLinkedInContinueIntent(..., { steerModel: true } from voice) —
  *     canonical test email (linkedin_demo@trainco.com). Voice uses teleAcknowledge + TellTele to avoid register_candidate.
- *   → AI navigates to LoadingLinkedIn, calls find_candidate, then get_candidate,
- *     then calls get_jobs_by_skills.
+ *   → AI navigates to LoadingLinkedIn, calls find_candidate, then get_candidate.
+ *     Job/metric data is fetched directly by the SPA via mcpBridge.
  *
  * Email path:
  *   User submits email form
@@ -82,7 +83,7 @@ export function RegistrationForm({
   useEffect(() => {
     if (regStep !== "form") return;
     informTele(
-      "[SYSTEM] RegistrationForm is now visible. STOP. Do NOT call find_candidate, register_candidate, fetchCandidate, fetchJobs, or fetchSkills. " +
+      "[SYSTEM] RegistrationForm is now visible. STOP. Do NOT call find_candidate, register_candidate, or get_candidate. " +
         "Wait for the user to either click 'Continue with LinkedIn' or submit their email. Only then proceed with journey-onboarding."
     );
   }, [regStep]);
@@ -125,9 +126,6 @@ export function RegistrationForm({
     [handleLinkedIn],
   );
 
-  // Same dual-path idea as MultiSelectOptions + docs: OpenAI transcription may attach
-  // after mount; Web Speech API fires locally so the canonical `user clicked:` intent
-  // still reaches Tele when the model event is late or missing.
   useBrowserSpeech({
     enabled: voiceLinkedInEnabled,
     onTranscript: onLinkedInVoiceTranscript,

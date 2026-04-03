@@ -1,6 +1,7 @@
+'use client';
 import type { ReactNode } from "react";
 import { X } from "lucide-react";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 
 interface BaseSheetLayoutProps {
   testId: string;
@@ -20,7 +21,7 @@ interface BaseSheetLayoutProps {
   footer?: ReactNode;
 }
 
-const ENTER_TRANSITION = { ease: [0.16, 1, 0.3, 1] as number[], duration: 0.35, delay: 0.05 };
+const ENTER_TRANSITION = { ease: [0.16, 1, 0.3, 1] as const, duration: 0.35, delay: 0.05 };
 
 export function BaseSheetLayout({
   testId,

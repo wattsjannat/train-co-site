@@ -1,10 +1,19 @@
-import { useState, useCallback, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+'use client';
+import { useState, useCallback, useRef, useMemo, useEffect } from "react";
+import { motion, AnimatePresence } from "motion/react";
 import { Loader2 } from "lucide-react";
 import { CardStack } from "@/components/ui/CardStack";
 import { sendJobOpenedIntent, sendJobClosedIntent, sendCardsDismissedIntent } from "@/utils/teleIntent";
+import { informTele } from "@/utils/teleUtils";
 import { useSpeechFallbackNudge } from "@/hooks/useSpeechFallbackNudge";
-import type { JobListing, BackendJobItem } from "@/types/flow";
+import { navigateClientToDashboardLanding } from "@/utils/clientDashboardNavigate";
+import { categorizeFit } from "@/utils/categorizeFit";
+import { coerceMatchScore, extractMatchScorePair } from "@/utils/scoredJobFields";
+import { lookupScoredJobFromCache, pickJobDescription } from "@/utils/jobCacheLookup";
+import { useMcpCache } from "@/contexts/McpCacheContext";
+import { logMcpUiMilestone } from "@/utils/mcpUiDebug";
+import { resolveJobsArray } from "@/platform/mcpBridge";
+import type { JobListing, BackendJobItem, FitCategory } from "@/types/flow";
 
 /**
  * Sanitizes a string value for safe display:
@@ -29,19 +38,77 @@ function sanitizeString(value: string | undefined | null, maxLength?: number): s
  * Accepts both wrapped (`{ job: { id, title, … } }`) and flat (`{ id, title, … }`)
  * formats so the template is resilient to AI payload variations.
  */
-function mapBackendJob(item: BackendJobItem): JobListing | null {
+function fmtSalaryRange(min?: number, max?: number): string | undefined {
+  if (min == null || max == null) return undefined;
+  const fmt = (v: number) => v.toLocaleString("en-US");
+  return `${fmt(min)} – ${fmt(max)}`;
+}
+
+/** Maps one `get_jobs_by_skills` row (wrapped or flat) to {@link JobListing}. Exported for JobSearchSheet parity. */
+export function mapBackendJob(item: BackendJobItem): JobListing | null {
   const j = item?.job ?? (item as unknown as BackendJobItem["job"]);
-  if (!j?.id || !j?.title) return null;
+  const jr = j as BackendJobItem["job"] & Record<string, unknown>;
+  const itemRec = item as unknown as Record<string, unknown>;
+
+  const jobId = (jr.id ?? jr.job_id ?? itemRec.job_id ?? itemRec.id) as string | undefined;
+  const jobTitle = (jr.title ?? itemRec.title) as string | undefined;
+  if (!jobId || !jobTitle) return null;
+
+  const mergedFlat = { ...itemRec, ...jr } as Record<string, unknown>;
+  const matchScore =
+    extractMatchScorePair(itemRec, jr) ??
+    extractMatchScorePair(mergedFlat, jr) ??
+    extractMatchScorePair(mergedFlat, mergedFlat);
+
+  const fitRaw = item.fit_category ?? item.fitCategory ?? jr.fit_category ?? jr.fitCategory;
+  const fitCategory: FitCategory | undefined =
+    fitRaw === "good-fit" || fitRaw === "stretch" || fitRaw === "grow-into"
+      ? fitRaw
+      : matchScore != null
+        ? categorizeFit(matchScore).category
+        : undefined;
+
+  const salaryRange =
+    sanitizeString(j.salary_range) ?? fmtSalaryRange(j.salary_min, j.salary_max);
+
+  const mergedForText = { ...itemRec, ...jr } as Record<string, unknown>;
+  const longDesc =
+    sanitizeString(pickJobDescription(mergedForText), 2000) ??
+    sanitizeString(j.description, 2000) ??
+    sanitizeString(typeof jr.ai_summary === "string" ? jr.ai_summary : undefined, 2000) ??
+    sanitizeString(typeof jr.summary === "string" ? jr.summary : undefined, 2000);
+  const cardBlurb = longDesc ? sanitizeString(longDesc.replace(/…$/, ""), 220) : undefined;
+  const aiSummary =
+    sanitizeString(typeof jr.ai_summary === "string" ? jr.ai_summary : undefined, 400) ??
+    sanitizeString(typeof jr.summary === "string" ? jr.summary : undefined, 400) ??
+    (cardBlurb ? sanitizeString(cardBlurb, 400) : undefined);
+
+  const skillGaps =
+    item.skill_gaps?.length && item.skill_gaps.every((g) => typeof g?.name === "string")
+      ? item.skill_gaps.map((g) => g.name)
+      : undefined;
+
   return {
-    id: j.id,
-    title: sanitizeString(j.title) ?? j.id,
-    company: sanitizeString(j.company) ?? "",
-    location: sanitizeString(j.location) ?? "",
-    ...(j.salary_range ? { salaryRange: sanitizeString(j.salary_range) } : {}),
-    ...(j.description ? { description: sanitizeString(j.description, 120) } : {}),
+    id: jobId,
+    title: sanitizeString(jobTitle) ?? jobId,
+    company: sanitizeString((jr.company ?? jr.company_name ?? itemRec.company_name ?? itemRec.company) as string | undefined) ?? "",
+    location: sanitizeString((jr.location ?? itemRec.location) as string | undefined) ?? "",
+    ...((jr.company_logo ?? itemRec.company_logo)
+      ? { companyLogo: sanitizeString((jr.company_logo ?? itemRec.company_logo) as string) }
+      : {}),
+    ...(salaryRange ? { salaryRange: salaryRange } : {}),
+    ...(cardBlurb ? { description: cardBlurb } : {}),
+    ...(aiSummary ? { aiSummary } : {}),
     ...(j.required_skills?.length
       ? { tags: j.required_skills.map((s) => s.name).filter(Boolean) }
       : {}),
+    ...(typeof jr.posted_at === "string" && jr.posted_at ? { postedAt: sanitizeString(jr.posted_at) } : {}),
+    ...((jr.application_url ?? itemRec.application_url)
+      ? { applicationUrl: sanitizeString((jr.application_url ?? itemRec.application_url) as string) }
+      : {}),
+    ...(matchScore != null ? { matchScore } : {}),
+    ...(fitCategory ? { fitCategory } : {}),
+    ...(skillGaps?.length ? { skillGaps } : {}),
   };
 }
 
@@ -59,6 +126,46 @@ interface CardStackTemplateProps {
   footerLeft?: string;
   /** Contextual label shown bottom-right (e.g. "3 Matches Found"). */
   footerRight?: string;
+}
+
+export function enrichJobFromCache(job: JobListing, jobsCache: unknown): JobListing {
+  const cached = lookupScoredJobFromCache(job.id, job.title, job.company, jobsCache);
+  if (!cached) return job;
+
+  const cachedRec = cached as Record<string, unknown>;
+  const scoreRaw =
+    coerceMatchScore(job.matchScore) ??
+    coerceMatchScore(cached.match_score) ??
+    coerceMatchScore(cached.score) ??
+    coerceMatchScore(cached.match_percentage) ??
+    extractMatchScorePair(cachedRec, cachedRec);
+
+  const fitRaw =
+    job.fitCategory ??
+    (cached.fit_category as FitCategory | undefined) ??
+    (cached.fitCategory as FitCategory | undefined) ??
+    (scoreRaw != null ? categorizeFit(scoreRaw).category : undefined);
+
+  const desc =
+    job.description ??
+    pickJobDescription(cached) ??
+    (cached.description as string | undefined);
+
+  return {
+    ...job,
+    location: job.location || (cached.location as string | undefined) || "",
+    companyLogo: job.companyLogo ?? (cached.company_logo as string | undefined),
+    salaryRange:
+      job.salaryRange ??
+      (cached.salary_range as string | undefined),
+    description: desc ?? job.description,
+    aiSummary:
+      job.aiSummary ??
+      (cached.ai_summary as string | undefined) ??
+      (cached.aiSummary as string | undefined),
+    matchScore: scoreRaw ?? job.matchScore,
+    fitCategory: fitRaw ?? job.fitCategory,
+  };
 }
 
 /**
@@ -80,11 +187,46 @@ interface CardStackTemplateProps {
  *   - AI can optionally call navigateToSection with updated props to highlight a card
  */
 export function CardStackTemplate({ rawJobs, jobs: jobsProp, highlightedJobId, footerLeft, footerRight }: CardStackTemplateProps) {
-  const resolvedJobs: JobListing[] = rawJobs
-    ? (rawJobs.slice(0, 3).map(mapBackendJob).filter(Boolean) as JobListing[])
-    : (jobsProp ?? []);
+  const cache = useMcpCache();
+  const resolvedJobs: JobListing[] = useMemo(() => {
+    const slice = (rawJobs?.length ? rawJobs : jobsProp ?? []).slice(0, 3);
+    const base: JobListing[] = slice
+      .map((item) => mapBackendJob(item as BackendJobItem))
+      .filter((j): j is JobListing => j != null);
+    if (!cache.jobs || base.length === 0) return base;
+    return base.map((j) => enrichJobFromCache(j, cache.jobs));
+  }, [rawJobs, jobsProp, cache.jobs]);
 
   const isLoading = resolvedJobs.length === 0;
+  const cacheJobLen = useMemo(() => resolveJobsArray(cache.jobs).length, [cache.jobs]);
+
+  useEffect(() => {
+    logMcpUiMilestone("CardStackTemplate render", {
+      rawJobsLen: rawJobs?.length ?? 0,
+      jobsPropLen: jobsProp?.length ?? 0,
+      resolvedJobCount: resolvedJobs.length,
+      isLoading,
+      cacheJobsResolvedCount: cacheJobLen,
+    });
+  }, [rawJobs?.length, jobsProp?.length, resolvedJobs.length, isLoading, cacheJobLen]);
+
+  // Recovery nudge: if CardStack mounts with no jobs, prompt the agent to fetch and deliver them.
+  const nudgeSentRef = useRef(false);
+  useEffect(() => {
+    if (!isLoading || nudgeSentRef.current) return;
+    const t = setTimeout(() => {
+      if (nudgeSentRef.current) return;
+      nudgeSentRef.current = true;
+      informTele(
+        "[SYSTEM] CardStack is on screen but has ZERO job cards. " +
+        "The SPA is fetching job data automatically — do NOT call get_jobs_by_skills. " +
+        "Do NOT call navigateToSection. Do NOT navigate to Dashboard. " +
+        "Say a short line like 'Finding your best matches…' and wait — cards will appear automatically.",
+      );
+    }, 1200);
+    return () => clearTimeout(t);
+  }, [isLoading]);
+
   const [dismissed, setDismissed] = useState(false);
   const hasDismissedRef = useRef(false);
 
@@ -93,6 +235,7 @@ export function CardStackTemplate({ rawJobs, jobs: jobsProp, highlightedJobId, f
     hasDismissedRef.current = true;
     setDismissed(true);
     void sendCardsDismissedIntent();
+    navigateClientToDashboardLanding(false, { afterOnboardingCards: true });
   }, []);
 
   // Screen tap → navigate to Dashboard
@@ -116,7 +259,10 @@ export function CardStackTemplate({ rawJobs, jobs: jobsProp, highlightedJobId, f
   });
 
   const handleJobSelected = (job: JobListing) => {
-    void sendJobOpenedIntent(job.title, job.company);
+    void sendJobOpenedIntent(job.title, job.company, {
+      jobId: job.id,
+      matchScore: job.matchScore,
+    });
   };
 
   const handleJobClosed = (job: JobListing) => {
@@ -157,26 +303,6 @@ export function CardStackTemplate({ rawJobs, jobs: jobsProp, highlightedJobId, f
             className="absolute pointer-events-auto"
             style={{ bottom: 88, left: 16, right: 16 }}
           >
-            {/*
-             * Contextual footer — latent capability for when the product evolves
-             * beyond the linear onboarding flow. Uncomment when open-ended
-             * navigation makes context anchoring useful.
-             *
-             * {(footerLeft || footerRight) && (
-             *   <div className="flex items-center justify-between px-2 mb-2">
-             *     {footerLeft && (
-             *       <span className="text-[var(--text-subtle)] text-xs leading-4 truncate">
-             *         {footerLeft}
-             *       </span>
-             *     )}
-             *     {footerRight && (
-             *       <span className="text-[var(--text-subtle)] text-xs leading-4 truncate text-right">
-             *         {footerRight}
-             *       </span>
-             *     )}
-             *   </div>
-             * )}
-             */}
             <CardStack
               jobs={resolvedJobs}
               highlightedJobId={highlightedJobId}

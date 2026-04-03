@@ -1,3 +1,4 @@
+'use client';
 import { useMemo } from "react";
 
 import { ArrowLeft, X, Zap, Clock } from "lucide-react";

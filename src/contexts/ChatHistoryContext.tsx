@@ -1,3 +1,5 @@
+'use client';
+
 import {
   createContext,
   useContext,
@@ -55,7 +57,6 @@ export function ChatHistoryProvider({
   const lastProcessedSpeechRef = useRef<string>("");
   const usedSectionIdsRef = useRef<Set<string>>(new Set());
 
-  // Extract options from current sections - called when creating message
   const extractCurrentOptions = useCallback((): string[] => {
     for (let i = sections.length - 1; i >= 0; i--) {
       const section = sections[i];
@@ -63,14 +64,12 @@ export function ChatHistoryProvider({
         section.templateId === "GlassmorphicOptions" ||
         section.templateId === "MultiSelectOptions"
       ) {
-        // Only use options from sections we haven't used yet
         if (!usedSectionIdsRef.current.has(section.id)) {
           const bubbles = section.props?.bubbles;
           if (Array.isArray(bubbles)) {
             const extractedOptions = bubbles.map((b: { label: string; value?: string }) =>
               b.value ?? b.label
             );
-            // Mark this section as used
             usedSectionIdsRef.current.add(section.id);
             return extractedOptions;
           }
@@ -80,7 +79,6 @@ export function ChatHistoryProvider({
     return [];
   }, [sections]);
 
-  // Extract candidate data
   const extractCandidateData = useCallback(() => {
     for (let i = sections.length - 1; i >= 0; i--) {
       const section = sections[i];
@@ -97,14 +95,12 @@ export function ChatHistoryProvider({
     return null;
   }, [sections]);
 
-  // Flush AI response to messages
   const flushResponse = useCallback(() => {
     const full = chunkBufferRef.current.join(" ").trim();
     chunkBufferRef.current = [];
 
     if (full && full !== lastProcessedSpeechRef.current) {
       lastProcessedSpeechRef.current = full;
-      // Extract options at the moment of creating the message
       const options = extractCurrentOptions();
       const candidateData = extractCandidateData();
       const newMsg: ChatMessage = {
@@ -121,11 +117,9 @@ export function ChatHistoryProvider({
         }
         return [...prev, newMsg];
       });
-      // Template extraction removed - now handled by section monitoring useEffect below
     }
   }, [extractCandidateData, extractCurrentOptions]);
 
-  // Listen to AI speech and accumulate chunks
   useEffect(() => {
     if (isTalking) {
       if (silenceTimerRef.current) {
@@ -146,7 +140,6 @@ export function ChatHistoryProvider({
     };
   }, []);
 
-  // Monitor sections for templates - Simple, reliable approach
   useEffect(() => {
     const STANDALONE_TEMPLATES = [
       "RegistrationForm",
@@ -157,24 +150,14 @@ export function ChatHistoryProvider({
       "CandidateSheet",
     ];
 
-
-    // Check each section for standalone templates
     sections.forEach((section) => {
       if (STANDALONE_TEMPLATES.includes(section.templateId)) {
-        
         setMessages((prev) => {
-          // Check if already added
-          const exists = prev.some(m => 
+          const exists = prev.some(m =>
             m.template?.templateId === section.templateId &&
             m.id.includes(section.id)
           );
-          
-          if (exists) {
-  
-            return prev;
-          }
-          
-          
+          if (exists) return prev;
           return [...prev, {
             id: `template-${section.id}-${Date.now()}`,
             role: "assistant" as const,
@@ -189,7 +172,6 @@ export function ChatHistoryProvider({
     });
   }, [sections]);
 
-  // Listen to user selection events
   useEffect(() => {
     const handleUserSelection = (event: Event) => {
       const customEvent = event as CustomEvent<{ selection: string }>;

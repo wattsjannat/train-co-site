@@ -1,5 +1,6 @@
+'use client';
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import { ArrowRight } from "lucide-react";
 import { CardStack } from "@/components/ui/CardStack";
 import type { BubbleOption } from "@/components/FloatingAnswerBubbles";
@@ -12,9 +13,9 @@ import { useSpeechFallbackNudge } from "@/hooks/useSpeechFallbackNudge";
 import { useVoiceTranscriptIntent } from "@/hooks/useVoiceTranscriptIntent";
 import { normalizeVoiceText, resolveVoiceMatchForSavedJobsBubbles } from "@/utils/voiceMatch";
 import { setLastBrowseScreen, navigateClientToJobSearchSheet } from "@/utils/clientDashboardNavigate";
-import { cn } from "@/lib/utils";
+import { cn } from "@/platform/utils";
 
-/** Same contract as GlassmorphicOptions — labels come from `search_knowledge` / journey payloads, not hardcoded in the app. */
+/** Same contract as GlassmorphicOptions — labels come from `navigateWithKnowledgeKey` (`saved_jobs_stack`) / journey payloads, not hardcoded in the app. */
 function normalizeBubbles(raw: unknown): BubbleOption[] {
   if (!Array.isArray(raw)) return [];
   const out: BubbleOption[] = [];
@@ -35,7 +36,7 @@ function normalizeBubbles(raw: unknown): BubbleOption[] {
 interface SavedJobsStackProps {
   /** Optional override; defaults to three frontend-mocked saved jobs. */
   jobs?: JobListing[];
-  /** Required — from `search_knowledge` SavedJobsStack payload (same shape as GlassmorphicOptions `bubbles`). */
+  /** Required — from `navigateWithKnowledgeKey` key `saved_jobs_stack` or equivalent navigate payload (same shape as GlassmorphicOptions `bubbles`). */
   bubbles?: unknown;
 }
 
@@ -84,7 +85,7 @@ export function SavedJobsStack({ jobs: jobsProp, bubbles: bubblesRaw }: SavedJob
   );
   const bubbleOptions = useMemo(() => normalizeBubbles(bubblesRaw), [bubblesRaw]);
 
-  /** Match navigateToSection bubble label so card tap ≡ “View full posting” bubble. */
+  /** Match navigateToSection bubble label so card tap ≡ "View full posting" bubble. */
   const viewFullPostingLabel = useMemo(() => {
     const opt = bubbleOptions.find(
       (o) =>
@@ -113,7 +114,7 @@ export function SavedJobsStack({ jobs: jobsProp, bubbles: bubblesRaw }: SavedJob
         emptyBubblesNudgedRef.current = true;
         informTele(
           "[CORRECTION NEEDED] SavedJobsStack requires non-empty `bubbles` in props (same shape as GlassmorphicOptions). " +
-            "Call search_knowledge with query **SavedJobsStack payload** and call navigateToSection again with `bubbles` from the result.",
+            "Call navigateWithKnowledgeKey with key `saved_jobs_stack` or navigateToSection with `bubbles` from speak-llm / traincoStaticKnowledge.",
         );
       }
       return;
@@ -198,12 +199,21 @@ export function SavedJobsStack({ jobs: jobsProp, bubbles: bubblesRaw }: SavedJob
   const lastVoiceIntentRef = useRef<{ key: string; at: number } | null>(null);
   const VOICE_INTENT_DEDUPE_MS = 2000;
 
+  // Accordion voice commands (expand/toggle/collapse + section name) belong to overlaid
+  // sheets (e.g. EligibilitySheet). Silently ignore them here so we don't fire
+  // sendInvalidOptionVoiceIntent and cause the AI to respond with a wrong message.
+  const ACCORDION_CMD_RE =
+    /^(?:expand|toggle|open|collapse|close)\s+(?:skills?|skill\s+alignment|experience|relevant\s+experience|certifications?)/;
+
   const onVoiceBubbleTranscript = useCallback(
     (transcript: string) => {
+      const norm = normalizeVoiceText(transcript);
+      if (ACCORDION_CMD_RE.test(norm)) return;
+
       const match = resolveVoiceMatchForSavedJobsBubbles(transcript, bubbleOptions);
       const key = match
         ? (match.value ?? match.label)
-        : `__invalid__:${normalizeVoiceText(transcript)}`;
+        : `__invalid__:${norm}`;
       const now = Date.now();
       const last = lastVoiceIntentRef.current;
       if (last && last.key === key && now - last.at < VOICE_INTENT_DEDUPE_MS) return;

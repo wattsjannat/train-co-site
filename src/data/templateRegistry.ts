@@ -2,14 +2,6 @@ import React from "react";
 
 type AnyTemplate = React.ComponentType<Record<string, unknown>>;
 
-/**
- * Maps templateId strings (sent by the Runtime Agent via navigateToSection) to
- * lazy-loaded React components. Add new templates here as the platform grows.
- *
- * Note: TeleSpeechBubble is NOT a template — it lives permanently in BaseLayout
- * and shows whatever the avatar is currently saying. Templates only render
- * interactive layers (options, forms, cards).
- */
 export const TEMPLATE_REGISTRY: Record<string, React.LazyExoticComponent<AnyTemplate>> = {
   EmptyScreen: React.lazy(() =>
     import("@/components/templates/EmptyScreen").then((m) => ({
@@ -146,21 +138,6 @@ export const TEMPLATE_REGISTRY: Record<string, React.LazyExoticComponent<AnyTemp
       default: m.CareerGrowthSheet as unknown as AnyTemplate,
     }))
   ),
-  JobPostingTemplate: React.lazy(() =>
-    import("@/components/templates/JobPostingTemplate").then((m) => ({
-      default: m.JobPostingTemplate as unknown as AnyTemplate,
-    }))
-  ),
-  JobCandidateView: React.lazy(() =>
-    import("@/components/templates/JobCandidateView").then((m) => ({
-      default: m.JobCandidateView as unknown as AnyTemplate,
-    }))
-  ),
-  HiringPage: React.lazy(() =>
-    import("@/components/templates/HiringPage").then((m) => ({
-      default: m.HiringPage as unknown as AnyTemplate,
-    }))
-  ),
   MyLearningSheet: React.lazy(() =>
     import("@/components/templates/MyLearningSheet").then((m) => ({
       default: m.MyLearningSheet as unknown as AnyTemplate,
@@ -173,10 +150,6 @@ export const TEMPLATE_REGISTRY: Record<string, React.LazyExoticComponent<AnyTemp
   ),
 };
 
-/**
- * Required props for each template. DynamicSectionLoader validates these on
- * every render and sends [CORRECTION NEEDED] to the AI if any are missing.
- */
 export const REQUIRED_PROPS: Record<string, string[]> = {
   EmptyScreen: [],
   WelcomeLanding: [],
@@ -205,9 +178,6 @@ export const REQUIRED_PROPS: Record<string, string[]> = {
   CareerGrowthDetail: [],
   MarketRelevanceSheet: [],
   CareerGrowthSheet: [],
-  JobPostingTemplate: [],
-  JobCandidateView: [],
-  HiringPage: [],
   MyLearningSheet: [],
   TargetRoleSheet: [],
 };

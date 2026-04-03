@@ -1,3 +1,4 @@
+'use client';
 import { useMemo } from "react";
 import { ChevronRight } from "lucide-react";
 import { pastApplications, type JobApplication } from "@/mocks/jobApplicationData";

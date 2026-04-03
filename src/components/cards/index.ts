@@ -1,18 +1,25 @@
-// Trainco Components
-export { AvatarScreen } from './AvatarScreen';
-export { GlassmorphicJobCard } from './GlassmorphicJobCard';
-export { JobCard } from './JobCard';
-export { CircularGaugeCard } from './CircularGaugeCard';
-export { SkillProgressCard } from './SkillProgressCard';
-export { PathTrackCard } from './PathTrackCard';
-export { LevelMeterCard } from './LevelMeterCard';
-export { TrendLineCard } from './TrendLineCard';
-export { SimpleProgressCard } from './SimpleProgressCard';
+// Course & Learning (4)
+export { CourseOverviewCard }  from './CourseOverviewCard';
+export { CourseProgressCard }  from './CourseProgressCard';
+export { LearningPathCard }    from './LearningPathCard';
+export { LessonCard }          from './LessonCard';
 
-// Helper Components
-export { MiniProgress } from './MiniProgress';
-export { QuestionBubble } from './QuestionBubble';
-export { OverflowPill } from './OverflowPill';
+// Content & Concepts (3)
+export { ConceptCard }         from './ConceptCard';
+export { LessonSplitCard }     from './LessonSplitCard';
+export { ObjectivesCard }      from './ObjectivesCard';
 
-// Grid View
-export { GridView } from './GridView';
+// Practice & Assessment (3)
+export { FlashcardCard }       from './FlashcardCard';
+export { SkillQuizCard }       from './SkillQuizCard';
+export { SkillsAssessmentCard } from './SkillsAssessmentCard';
+
+// Skills & Credentials (3)
+export { SkillsProfileCard }   from './SkillsProfileCard';
+export { CertificationsCard }  from './CertificationsCard';
+export { StepCard }            from './StepCard';
+
+// Progress & Celebration (3)
+export { MilestoneCard }       from './MilestoneCard';
+export { AchievementCard }     from './AchievementCard';
+export { CelebrationCard }     from './CelebrationCard';

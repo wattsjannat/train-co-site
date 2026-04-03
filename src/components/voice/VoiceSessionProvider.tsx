@@ -2,9 +2,7 @@
 
 import { useEffect, useRef, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { useVoiceSessionStore } from '@/lib/stores/voice-session-store';
-import { registerSiteFunctions } from '@/site-functions/register';
-
+import { useVoiceSessionStore } from '@/platform/stores/voice-session-store';
 interface VoiceSessionProviderProps {
   children: React.ReactNode;
 }
@@ -63,10 +61,8 @@ export function VoiceSessionProvider({ children }: VoiceSessionProviderProps) {
     }
   }, [pathname]);
 
-  // Register site functions on window.__siteFunctions
-  useEffect(() => {
-    registerSiteFunctions();
-  }, []);
+  // Site functions: registered in app/page.tsx (stubs) and upgraded in usePhaseFlow — do not register here
+  // or we risk redundant work and confusing double-install logs.
 
   // ── Keyboard shortcuts ──
   // SHIFT+M  → toggle mic mute

@@ -1,32 +1,18 @@
-type UIFrameworkWindow = Window & {
-  UIFramework?: {
-    TellTele?: (message: string) => void;
-    informTele?: (message: string) => void;
-    teleAcknowledge?: (instruction: string, options?: Record<string, unknown>) => void;
-    speakAvatar?: (text: string, options?: { ensureConnected?: boolean; chunked?: boolean }) => Promise<boolean>;
-    isConnected?: () => boolean;
-  };
-};
+/**
+ * teleUtils — communication helpers for the voice agent.
+ * Adapted from trainco-v1 to use the Mobeus/LiveKit voice-session-store.
+ */
 
-function fw() {
-  return (window as UIFrameworkWindow).UIFramework;
-}
+import { informTele } from "@/utils/informTele";
+import { useVoiceSessionStore } from "@/platform/stores/voice-session-store";
 
 export type NotifyTeleOptions = {
-  /**
-   * When true, usePhaseFlow will not arm the navigate drift timer for this Tell.
-   * Use for intents that expect long MCP chains (find_candidate, register_candidate, …)
-   * before the next navigateToSection — otherwise teleAcknowledge can collide with an
-   * active response (conversation_already_has_active_response).
-   */
   skipNavigateDrift?: boolean;
 };
 
 /**
- * Sends a visible user message to the Runtime Agent via UIFramework.TellTele.
- * Equivalent to the user typing or saying the message aloud.
- *
- * Dispatches a teleThinkingStart event for visual feedback while polling for readiness.
+ * Sends a visible user message to the voice agent (equivalent to UIFramework.TellTele).
+ * Dispatches teleThinkingStart event and adds to transcript.
  */
 export async function notifyTele(
   message: string,
@@ -40,51 +26,27 @@ export async function notifyTele(
     );
   } catch (_) {}
 
-  let attempts = 0;
-  while (!fw()?.TellTele && attempts < 50) {
-    await new Promise((r) => setTimeout(r, 300));
-    attempts++;
-  }
-
-  fw()?.TellTele?.(message);
+  const { tellAgent } = useVoiceSessionStore.getState();
+  await tellAgent(message);
 }
 
 /**
- * Sends invisible context to the Runtime Agent via UIFramework.informTele.
- * The user does not see this message — it is injected silently into the AI session.
+ * Sends invisible context to the voice agent (equivalent to UIFramework.informTele).
+ * The user does not see this message.
  */
-export function informTele(message: string): void {
-  fw()?.informTele?.(message);
-}
+export { informTele };
 
 /**
- * Sends a hidden high-priority instruction to the Runtime Agent.
- * Use this when a UI state should strongly trigger the next response.
+ * Sends a hidden high-priority instruction to the voice agent (equivalent to UIFramework.teleAcknowledge).
  */
-export function teleAcknowledge(
+export async function teleAcknowledge(
   instruction: string,
-  options: Record<string, unknown> = { visible: false },
-): void {
-  fw()?.teleAcknowledge?.(instruction, options);
+  _options: Record<string, unknown> = { visible: false }
+): Promise<void> {
+  const { informAgent } = useVoiceSessionStore.getState();
+  await informAgent(instruction);
 }
 
-/**
- * Forces the avatar to speak text aloud.
- * Use for immediate welcome feedback while the AI session initializes.
- * Per UIFramework API: ensureConnected=true auto-connects avatar if needed.
- */
-export async function speakAvatar(
-  text: string,
-  options?: { ensureConnected?: boolean; chunked?: boolean },
-): Promise<boolean> {
-  return (await fw()?.speakAvatar?.(text, options)) ?? false;
-}
-
-/**
- * Dispatches a client-side navigation pop: usePhaseFlow slices the stack back to the
- * last JobSearchSheet or SavedJobsStack so close/back returns to Job Center (or Saved Jobs)
- * without waiting for the agent to call navigateToSection.
- */
 export const EVENT_NAVIGATE_POP_JOB_BROWSE = "navigate-pop-job-browse";
 
 export function popJobBrowseScreen(): void {

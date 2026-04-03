@@ -1,36 +1,25 @@
+'use client';
+
 import { useState, useEffect, useRef } from "react";
-import { AnimatePresence } from "framer-motion";
-import { QuestionBubble } from "./cards/QuestionBubble";
+import { AnimatePresence } from "motion/react";
+import { QuestionBubble } from "./QuestionBubble";
 import { useTeleState } from "@/hooks/useTeleState";
 import { useCurrentSection } from "@/contexts/CurrentSectionContext";
 import { useTeleSpeechContext } from "@/contexts/TeleSpeechContext";
 
 const SPEECH_BUBBLE_TOP = 80;
 
-const HIDDEN_BUBBLE_TEMPLATES = ["LoadingGeneral", "LoadingLinkedIn", "SkillCoverageSheet", "SkillTestFlow", "MarketRelevanceSheet", "CareerGrowthSheet", "MyLearningSheet", "JobSearchSheet", "JobDetailSheet", "JobApplicationsSheet", "PastApplicationsSheet", "CloseGapSheet", "TargetRoleSheet"];
+const HIDDEN_BUBBLE_TEMPLATES = [
+  "LoadingGeneral", "LoadingLinkedIn", "SkillCoverageSheet", "SkillTestFlow",
+  "MarketRelevanceSheet", "CareerGrowthSheet", "MyLearningSheet", "JobSearchSheet",
+  "JobDetailSheet", "JobApplicationsSheet", "PastApplicationsSheet", "CloseGapSheet",
+  "TargetRoleSheet",
+];
 
-/** How long to wait after dashboard profile-home mounts before showing the fallback text. */
 const DASHBOARD_PROFILE_FALLBACK_MS = 5000;
-
 const DASHBOARD_LANDING_SECTION_ID = "profile-home";
-
-/**
- * Grace period before the bubble appears — gives navigateToSection time to
- * update the template (and flip isHidden) before the bubble renders.
- * Applied to all visibility paths (speech, isTalking, beginCta).
- */
 const SHOW_DEBOUNCE_MS = 400;
 
-/**
- * Persistent speech overlay — always mounted inside BaseLayout.
- *
- * Becomes visible as soon as the avatar starts talking (`isTalking: true`) and
- * updates sentence-by-sentence via `assistantTranscriptDelta`. Hidden only when
- * a Loading template is active or the tele is disconnected.
- *
- * "Where should we begin?" is a pure fallback — shown only when the AI has NOT
- * spoken since profile-home appeared AND a grace period has elapsed.
- */
 export function TeleSpeechBubble() {
   const { effectiveTemplateId, currentSectionId } = useCurrentSection();
   const { speech, isTalking, setSpeechBubbleBottomPx, speechDisplayOverride } = useTeleSpeechContext();
@@ -71,8 +60,6 @@ export function TeleSpeechBubble() {
     (teleConnected || !!speechDisplayOverride?.trim()) &&
     (isTalking || (onBeginCta ? isBeginCta : !!resolvedSpeech?.trim()));
 
-  // Debounce rising-edge only: delay showing by SHOW_DEBOUNCE_MS so
-  // navigateToSection has time to flip isHidden before the bubble appears.
   const [showBubble, setShowBubble] = useState(false);
   useEffect(() => {
     if (wantVisible && !isHidden) {
@@ -104,8 +91,6 @@ export function TeleSpeechBubble() {
     return () => ro.disconnect();
   }, [visible, message, setSpeechBubbleBottomPx]);
 
-  // When on a hidden template, remove the entire DOM node immediately
-  // (no exit animation that would linger over the template's UI).
   if (isHidden) {
     return null;
   }

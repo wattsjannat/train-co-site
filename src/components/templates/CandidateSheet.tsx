@@ -1,8 +1,10 @@
+'use client';
 import { useCallback, useState } from "react";
 import { Plus, Pencil, ArrowRight, Loader2 } from "lucide-react";
 import { BottomSheet } from "@/components/ui/BottomSheet";
 import { sendLooksGoodClickedIntent, sendTappedIntent } from "@/utils/teleIntent";
 import { useVoiceTranscriptIntent } from "@/hooks/useVoiceTranscriptIntent";
+import { useBrowserSpeech } from "@/hooks/useBrowserSpeech";
 import { useSpeechFallbackNudge } from "@/hooks/useSpeechFallbackNudge";
 
 export interface ExperienceEntry {
@@ -82,21 +84,31 @@ export function CandidateSheet({
     void sendLooksGoodClickedIntent();
   }, [confirmed]);
 
-  useVoiceTranscriptIntent({
-    enabled: !confirmed,
-    onTranscript: (transcript) => {
+  const onLooksGoodVoiceTranscript = useCallback(
+    (transcript: string) => {
+      const t = transcript.toLowerCase();
       const isLooksGoodIntent =
-        transcript === "looks good" ||
-        transcript.includes("looks good") ||
-        transcript.includes("that looks good") ||
-        transcript.includes("this looks good") ||
-        transcript.includes("all good") ||
-        transcript.includes("proceed");
+        t === "looks good" ||
+        t.includes("looks good") ||
+        t.includes("that looks good") ||
+        t.includes("this looks good") ||
+        t.includes("all good") ||
+        t.includes("proceed");
 
       if (isLooksGoodIntent) {
         handleLooksGood();
       }
     },
+    [handleLooksGood],
+  );
+
+  useVoiceTranscriptIntent({
+    enabled: !confirmed,
+    onTranscript: onLooksGoodVoiceTranscript,
+  });
+  useBrowserSpeech({
+    enabled: !confirmed,
+    onTranscript: onLooksGoodVoiceTranscript,
   });
 
   useSpeechFallbackNudge({
@@ -110,6 +122,7 @@ export function CandidateSheet({
       "[SYSTEM] CandidateSheet is now visible. " +
       "If your immediately previous response did not include required candidate-review speech, your next response MUST say exactly: " +
       '"Your LinkedIn has been connected successfully." and "Do these details look correct?" ' +
+      "FORBIDDEN on CandidateSheet: any phrase like \"Connecting with LinkedIn\" or \"connecting…\" — that copy belongs ONLY on LoadingLinkedIn, never here. " +
       "Do not call any new tool in that response.",
     delayMs: 1000,
   });
@@ -200,28 +213,6 @@ export function CandidateSheet({
             <EducationRow key={i} entry={entry} />
           ))}
         </div>
-
-        {/*
-         * Contextual footer — latent capability for when the product evolves
-         * beyond the linear onboarding flow. In the current strict state-machine
-         * flow the user always knows where they are, so footers are dormant.
-         * Uncomment when open-ended navigation makes context anchoring useful.
-         *
-         * {(footerLeft || footerRight) && (
-         *   <div className="relative z-10 flex items-center justify-between px-1">
-         *     {footerLeft && (
-         *       <span className="text-[var(--text-subtle)] text-xs leading-4 truncate">
-         *         {footerLeft}
-         *       </span>
-         *     )}
-         *     {footerRight && (
-         *       <span className="text-[var(--text-subtle)] text-xs leading-4 truncate text-right">
-         *         {footerRight}
-         *       </span>
-         *     )}
-         *   </div>
-         * )}
-         */}
 
         {/* ── CTA ─────────────────────────────────────────────────────────── */}
         <button

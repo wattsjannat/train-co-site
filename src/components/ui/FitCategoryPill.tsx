@@ -1,3 +1,4 @@
+'use client';
 import { getFitInfo, type FitCategory } from "@/utils/categorizeFit";
 
 interface FitCategoryPillProps {

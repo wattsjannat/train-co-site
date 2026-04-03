@@ -1,24 +1,9 @@
+'use client';
+
 /**
- * TeleSpeechContext — singleton LiveKit listener for avatar speech events.
- *
- * WHY A CONTEXT?
- * useTeleSpeech() used to be a standalone hook: every component that called it
- * created its own independent isTalking=false state and its own LiveKit
- * DataReceived listener. This caused a subtle but critical bug:
- *
- *   When GlassmorphicOptions mounted mid-speech (because navigateToSection fires
- *   while the avatar is already talking), its brand-new hook instance started
- *   with isTalking=false and immediately triggered the 700ms silence timer — even
- *   though the avatar was actively speaking. For short AI sentences (STEP 1 "Welcome!",
- *   STEP 2 "Let us begin.") the timer fired in an acceptable gap. But for the longer
- *   STEP 3 insight sentence (~3–4 s), the timer fired hundreds of milliseconds
- *   before the insight finished, showing the priority options while the avatar was
- *   mid-sentence, and then the 1500ms dismiss threshold kicked in when the question
- *   sentence started, hiding the options before the user could see them.
- *
- * SOLUTION: a single Context provider owns one LiveKit listener and one isTalking
- * state. All useTeleSpeech() callers read from this shared state, so a component
- * mounting mid-speech immediately gets isTalking=true and behaves correctly.
+ * TeleSpeechContext — provides a singleton speech state for all components.
+ * Adapted from trainco-v1 to read from the voice-session-store transcripts
+ * instead of UIFramework DataReceived events.
  */
 
 import {
@@ -30,23 +15,17 @@ import {
   useRef,
   type ReactNode,
 } from "react";
+import { useVoiceSessionStore } from "@/platform/stores/voice-session-store";
 
 export interface TeleSpeechState {
   speech: string | null;
-  /** True from avatar_start_talking until avatar_stop_talking. Shared across all consumers. */
   isTalking: boolean;
-  /** Pixel offset from top where the speech bubble ends. Used to position content below it. */
   speechBubbleBottomPx: number | null;
 }
 
 export interface TeleSpeechContextValue extends TeleSpeechState {
   setSpeechBubbleBottomPx: (px: number | null) => void;
-  /** Epoch ms when the avatar last started talking. Useful for recency checks. */
   getLastSpeechAt: () => number;
-  /**
-   * When set (e.g. EligibilitySheet intro), TeleSpeechBubble shows this until live
-   * `speech` from the avatar replaces it.
-   */
   speechDisplayOverride: string | null;
   setSpeechDisplayOverride: (value: string | null) => void;
 }
@@ -61,190 +40,173 @@ const TeleSpeechContext = createContext<TeleSpeechContextValue>({
   setSpeechDisplayOverride: () => {},
 });
 
+/**
+ * When the agent responds with structured JSON, the transcript text can look like:
+ *   (a) Pure JSON:  `{ "speech": "Hello!", "action": "navigateWithKnowledgeKey", ... }`
+ *   (b) Mixed:      `Hello! { "navigateWithKnowledgeKey": { "key": "welcome_greeting" } }`
+ *
+ * In both cases we want to return only the human-readable speech text.
+ */
+function extractSpeechText(raw: string): string {
+  const trimmed = raw.trim();
+
+  // Case (a): entire string is a JSON object — extract the "speech" field
+  if (trimmed.startsWith('{')) {
+    try {
+      const parsed = JSON.parse(trimmed) as Record<string, unknown>;
+      if (typeof parsed.speech === 'string' && parsed.speech) return parsed.speech;
+      for (const key of ['text', 'content', 'message']) {
+        if (typeof parsed[key] === 'string' && (parsed[key] as string).length > 0) {
+          return parsed[key] as string;
+        }
+      }
+      // Entire response is JSON with no speech field — hide it (empty string shows nothing)
+      return '';
+    } catch {
+      // Not valid JSON — fall through
+    }
+  }
+
+  // Case (b): speech text followed by a JSON action block `Hello! { "action": ... }`
+  // Find the first `{` where everything from there to end is valid JSON.
+  const braceIdx = trimmed.indexOf('{');
+  if (braceIdx > 0) {
+    const jsonPart = trimmed.slice(braceIdx).trim();
+    try {
+      JSON.parse(jsonPart);
+      return trimmed.slice(0, braceIdx).trim();
+    } catch {
+      // Not valid JSON — fall through
+    }
+  }
+
+  // Case (c): bracketed or parenthesised action suffix — e.g.
+  //   `Hello! [navigateWithKnowledgeKey: { "key": "..." }]`
+  //   `Hello! (callSiteFunction navigateToSection {...})`
+  // Strip any trailing `[...]` or `(...)` block that looks like a function/action call.
+  const stripped = trimmed
+    .replace(/\s*\[[\s\S]*\]\s*$/, '')   // strip trailing [...]
+    .replace(/\s*\([\s\S]*\)\s*$/, '')   // strip trailing (...)
+    .trim();
+  if (stripped && stripped !== trimmed) return stripped;
+
+  return raw;
+}
+
 export function TeleSpeechProvider({ children }: { children: ReactNode }) {
   const [speech, setSpeech] = useState<string | null>(null);
   const [isTalking, setIsTalking] = useState(false);
   const [speechBubbleBottomPx, setSpeechBubbleBottomPx] = useState<number | null>(null);
   const [speechDisplayOverride, setSpeechDisplayOverride] = useState<string | null>(null);
-
-  const registeredRef = useRef(false);
-  const cleanupRef = useRef<(() => void) | null>(null);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const messageCacheRef = useRef<Map<string, string>>(new Map());
-  const navigateClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSpeechAtRef = useRef(0);
-  const textQueueRef = useRef<string[]>([]);
+  /** While MultiSelect is interactive, block newer agent lines so the bubble cannot jump to the next step before Continue. */
+  const multiSelectSpeechLockRef = useRef<"off" | "pending" | "frozen">("off");
+  /** Agent transcript segment id allowed to keep updating (streaming) while frozen. */
+  const multiSelectLockedSegmentIdRef = useRef<string | null>(null);
+  /** Latest agent segment id when MultiSelect became interactive — stay pending until a *different* segment (industry line) arrives. */
+  const multiSelectPendingBaselineSegmentIdRef = useRef<string | null>(null);
+  const agentState = useVoiceSessionStore((s) => s.agentState);
+  const transcripts = useVoiceSessionStore((s) => s.transcripts);
 
   const getLastSpeechAt = useCallback(() => lastSpeechAtRef.current, []);
 
-  const stopPolling = () => {
-    if (pollRef.current) {
-      clearInterval(pollRef.current);
-      pollRef.current = null;
+  // Sync isTalking from agent state
+  useEffect(() => {
+    const talking = agentState === 'speaking';
+    setIsTalking(talking);
+    if (talking) {
+      lastSpeechAtRef.current = Date.now();
     }
-  };
-
-  const tryRegister = () => {
-    if (registeredRef.current) {
-      stopPolling();
-      return;
-    }
-
-     
-    const win = window as any;
-    const room = win.UIFramework?.voiceController?.avatarController?.model?.room;
-    const DataReceived = win.LivekitClient?.RoomEvent?.DataReceived;
-
-    if (!room?.on || !DataReceived) return;
-
-    console.log("[TeleSpeechContext] LiveKit room found, attaching singleton DataReceived handler");
-
-    const model = win.UIFramework?.voiceController?.avatarController?.model;
-
-    // Pre-cache text when it is queued to the avatar (fires BEFORE audio starts).
-    // Uses a FIFO queue so each avatar_start_talking consumes the correct sentence.
-    const onTextSentToAvatar = (event: Record<string, unknown>) => {
-      if (typeof event?.text === "string" && event.text.trim()) {
-        textQueueRef.current.push(event.text.trim());
-      }
-    };
-    model?.addEventListener?.("textSentToAvatar", onTextSentToAvatar);
-
-    const onDataReceived = (...args: unknown[]) => {
-      try {
-        const payload = args[0] as Uint8Array;
-        const data = JSON.parse(new TextDecoder().decode(payload));
-
-        const { type, task_id, message } = data ?? {};
-
-        if (type === "avatar_talking_message" && task_id && message) {
-          messageCacheRef.current.set(task_id, message);
-        } else if (type === "avatar_start_talking") {
-          lastSpeechAtRef.current = Date.now();
-          if (navigateClearTimerRef.current) {
-            clearTimeout(navigateClearTimerRef.current);
-            navigateClearTimerRef.current = null;
-          }
-          // Show bubble immediately using data-channel cache or next queued text
-          const cached = task_id ? messageCacheRef.current.get(task_id) : undefined;
-          const queued = !cached ? textQueueRef.current.shift() : undefined;
-          const textToShow = cached ?? queued;
-          if (textToShow) setSpeech(textToShow);
-          setIsTalking(true);
-        } else if (type === "avatar_stop_talking") {
-          setIsTalking(false);
-          if (task_id) messageCacheRef.current.delete(task_id);
-        }
-      } catch {
-        // Ignore non-JSON or unrelated data channel messages
-      }
-    };
-
-    room.on(DataReceived, onDataReceived);
-
-    // avatar.transcription arrives after audio starts — use it to correct the
-    // bubble with the exact spoken text (sentence-by-sentence accuracy).
-    const onWebsocketMessage = (event: Record<string, unknown>) => {
-      if (typeof event?.message === "string" && event.message.trim()) {
-        setSpeech(event.message.trim());
-      }
-    };
-    model?.addEventListener?.("websocketMessage", onWebsocketMessage);
-
-    registeredRef.current = true;
-    stopPolling();
-
-    cleanupRef.current = () => {
-      room.off(DataReceived, onDataReceived);
-      model?.removeEventListener?.("textSentToAvatar", onTextSentToAvatar);
-      model?.removeEventListener?.("websocketMessage", onWebsocketMessage);
-    };
-  };
-
-  const startPolling = () => {
-    stopPolling();
-    let attempts = 0;
-    pollRef.current = setInterval(() => {
-      attempts++;
-      tryRegister();
-      if (registeredRef.current || attempts >= 100) stopPolling();
-    }, 300);
-  };
+  }, [agentState]);
 
   useEffect(() => {
-    tryRegister();
-    if (!registeredRef.current) startPolling();
-
-    const onConnectionChange = (e: Event) => {
-      const connected = (e as CustomEvent<{ connected: boolean }>).detail?.connected;
-      if (connected) {
-        cleanupRef.current?.();
-        cleanupRef.current = null;
-        registeredRef.current = false;
-        messageCacheRef.current.clear();
-        textQueueRef.current = [];
-        setSpeech(null);
-        setIsTalking(false);
-        tryRegister();
-        if (!registeredRef.current) startPolling();
+    const onLock = (e: Event) => {
+      const locked = (e as CustomEvent<{ locked?: boolean }>).detail?.locked === true;
+      if (!locked) {
+        multiSelectSpeechLockRef.current = "off";
+        multiSelectLockedSegmentIdRef.current = null;
+        multiSelectPendingBaselineSegmentIdRef.current = null;
+        return;
       }
+      const agent = useVoiceSessionStore.getState().transcripts.filter((t) => t.isAgent);
+      const last = agent[agent.length - 1];
+      multiSelectPendingBaselineSegmentIdRef.current = last?.id ?? null;
+      multiSelectSpeechLockRef.current = "pending";
+      multiSelectLockedSegmentIdRef.current = null;
     };
+    const onSubmitted = () => {
+      multiSelectSpeechLockRef.current = "off";
+      multiSelectLockedSegmentIdRef.current = null;
+      multiSelectPendingBaselineSegmentIdRef.current = null;
+    };
+    window.addEventListener("multi-select-speech-lock", onLock);
+    window.addEventListener("multi-select-submitted", onSubmitted);
+    return () => {
+      window.removeEventListener("multi-select-speech-lock", onLock);
+      window.removeEventListener("multi-select-submitted", onSubmitted);
+    };
+  }, []);
 
-    // Delayed stale-speech clear on navigateToSection — dashboard journey only.
-    // Qualification flow (GlassmorphicOptions, MultiSelectOptions, etc.) keeps the bubble
-    // visible while the user selects options. Only clear on dashboard templates.
+  // Sync speech from transcripts (latest agent transcript)
+  useEffect(() => {
+    const agentTranscripts = transcripts.filter((t) => t.isAgent);
+    if (agentTranscripts.length === 0) return;
+    const latest = agentTranscripts[agentTranscripts.length - 1];
+    if (!latest?.text) return;
+
+    const mode = multiSelectSpeechLockRef.current;
+    if (mode === "frozen") {
+      if (multiSelectLockedSegmentIdRef.current === latest.id) {
+        setSpeech(extractSpeechText(latest.text));
+      }
+      return;
+    }
+    if (mode === "pending") {
+      const baseline = multiSelectPendingBaselineSegmentIdRef.current;
+      if (baseline != null && latest.id === baseline) {
+        setSpeech(extractSpeechText(latest.text));
+        return;
+      }
+      setSpeech(extractSpeechText(latest.text));
+      multiSelectSpeechLockRef.current = "frozen";
+      multiSelectLockedSegmentIdRef.current = latest.id;
+      multiSelectPendingBaselineSegmentIdRef.current = null;
+      return;
+    }
+    setSpeech(extractSpeechText(latest.text));
+  }, [transcripts]);
+
+  // Listen to tele-navigate-section to clear stale speech
+  useEffect(() => {
     const NAVIGATE_CLEAR_DELAY_MS = 8000;
     const DASHBOARD_JOURNEY_TEMPLATES = new Set([
-      "Dashboard",
-      "ProfileSheet",
-      "JobSearchSheet",
-      "JobDetailSheet",
-      "EligibilitySheet",
-      "CloseGapSheet",
-      "JobApplicationsSheet",
-      "PastApplicationsSheet",
-      "SkillCoverageSheet",
-      "SkillTestFlow",
-      "MarketRelevanceSheet",
-      "CareerGrowthSheet",
-      "SkillsDetail",
-      "MarketRelevanceDetail",
-      "CareerGrowthDetail",
+      "Dashboard", "ProfileSheet", "JobSearchSheet", "JobDetailSheet",
+      "EligibilitySheet", "CloseGapSheet", "JobApplicationsSheet", "PastApplicationsSheet",
+      "SkillCoverageSheet", "SkillTestFlow", "MarketRelevanceSheet", "CareerGrowthSheet",
+      "SkillsDetail", "MarketRelevanceDetail", "CareerGrowthDetail",
     ]);
+    let clearTimer: ReturnType<typeof setTimeout> | null = null;
+
     const onNavigate = (e: Event) => {
       const detail = (e as CustomEvent<{ templateIds?: string[] }>).detail;
       const templateIds = detail?.templateIds ?? [];
-      const isDashboardJourney = templateIds.some((id) =>
-        DASHBOARD_JOURNEY_TEMPLATES.has(id)
-      );
+      const isDashboardJourney = templateIds.some((id) => DASHBOARD_JOURNEY_TEMPLATES.has(id));
       if (!isDashboardJourney) return;
 
       const navigateAt = Date.now();
-      if (navigateClearTimerRef.current) clearTimeout(navigateClearTimerRef.current);
-      navigateClearTimerRef.current = setTimeout(() => {
-        // Speech arrived within a few seconds of the navigate event —
-        // this is a speech+navigate response, not stale text. Keep it.
-        if (lastSpeechAtRef.current > navigateAt - 5000) {
-          navigateClearTimerRef.current = null;
-          return;
-        }
+      if (clearTimer) clearTimeout(clearTimer);
+      clearTimer = setTimeout(() => {
+        if (lastSpeechAtRef.current > navigateAt - 5000) return;
         setSpeech(null);
-        navigateClearTimerRef.current = null;
+        clearTimer = null;
       }, NAVIGATE_CLEAR_DELAY_MS);
     };
 
-    window.addEventListener("tele-connection-changed", onConnectionChange);
     window.addEventListener("tele-navigate-section", onNavigate);
-
     return () => {
-      stopPolling();
-      if (navigateClearTimerRef.current) clearTimeout(navigateClearTimerRef.current);
-      window.removeEventListener("tele-connection-changed", onConnectionChange);
       window.removeEventListener("tele-navigate-section", onNavigate);
-      cleanupRef.current?.();
-      registeredRef.current = false;
+      if (clearTimer) clearTimeout(clearTimer);
     };
-     
   }, []);
 
   return (
@@ -264,7 +226,6 @@ export function TeleSpeechProvider({ children }: { children: ReactNode }) {
   );
 }
 
-/** Read the shared avatar speech state. Must be inside <TeleSpeechProvider>. */
 export function useTeleSpeechContext(): TeleSpeechContextValue {
   return useContext(TeleSpeechContext);
 }

@@ -1,15 +1,14 @@
+'use client';
+
 import { useState } from "react";
-import { X } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { teleState } from "@/lib/teleState";
-import type { TeleConnectionState, TeleActiveMode } from "@/lib/teleState";
-import { syncTeleState, disconnectTele } from "@/lib/teleConnect";
+import { cn } from "@/platform/utils";
+import { teleState } from "@/platform/teleState";
+import type { TeleConnectionState, TeleActiveMode } from "@/platform/teleState";
+import { syncTeleState, disconnectTele } from "@/platform/teleConnect";
 
 interface BottomNavProps {
   className?: string;
 }
-
-/* ── Inline SVGs matching Figma icons ──────────────────────────────────── */
 
 const SparklesIcon = ({ className }: { className?: string }) => (
   <svg className={className} width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
@@ -35,16 +34,11 @@ const ChatIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 
-/** Layout from Figma Design System — Bottom Nav (6958:15887); 168×40, px-4 py-2, 56px active capsule */
-const ACTIVE_CAPSULE_W = 56;
-const ACTIVE_CAPSULE_LEFT: Record<"tele" | "voice" | "chat", number> = {
-  tele: 0,
-  voice: 55,
-  chat: 112,
-};
+const ACTIVE =
+  "border border-[var(--accent-strong)] bg-[var(--surface-bottom-nav-capsule)] shadow-[0px_0px_8px_0px_var(--accent-strong)] text-[var(--accent-strong)]";
+const INACTIVE = "text-[var(--text-bottom-nav-icon-muted)]";
 
 export function BottomNav({ className = "" }: BottomNavProps) {
-  // Read initial state from singleton so remounts (phase changes) preserve state.
   const [connectionState, setConnectionState] = useState<TeleConnectionState>(
     () => teleState.connectionState
   );
@@ -52,7 +46,6 @@ export function BottomNav({ className = "" }: BottomNavProps) {
     () => teleState.activeMode
   );
 
-  /** Update both local state and the module singleton, then dispatch event. */
   const applyState = (
     cs: TeleConnectionState,
     am: TeleActiveMode,
@@ -63,10 +56,8 @@ export function BottomNav({ className = "" }: BottomNavProps) {
     syncTeleState(cs, am, connected);
   };
 
-  // Tele button: disconnect if active, switch to tele mode if another mode is active
   const handleTeleButton = async () => {
     if (connectionState !== "connected") return;
-
     if (activeMode === "tele") {
       await disconnectTele();
       applyState("idle", "none", false);
@@ -75,10 +66,8 @@ export function BottomNav({ className = "" }: BottomNavProps) {
     }
   };
 
-  // Voice button: disconnect if active, switch to voice mode if another mode is active
   const handleVoiceButton = async () => {
     if (connectionState !== "connected") return;
-
     if (activeMode === "voice") {
       await disconnectTele();
       applyState("idle", "none", false);
@@ -87,10 +76,8 @@ export function BottomNav({ className = "" }: BottomNavProps) {
     }
   };
 
-  // Chat button: disconnect if active, switch to chat mode if another mode is active
   const handleChatButton = async () => {
     if (connectionState !== "connected") return;
-
     if (activeMode === "chat") {
       await disconnectTele();
       applyState("idle", "none", false);
@@ -103,90 +90,52 @@ export function BottomNav({ className = "" }: BottomNavProps) {
   const teleActive = activeMode === "tele" && connected;
   const voiceActive = activeMode === "voice" && connected;
   const chatActive = activeMode === "chat" && connected;
-  const inactiveIcon = "text-[var(--text-bottom-nav-icon-muted)]";
-
-  const showActiveCapsule =
-    connected && (activeMode === "tele" || activeMode === "voice" || activeMode === "chat");
-  const activeCapsuleLeft =
-    activeMode === "tele" || activeMode === "voice" || activeMode === "chat"
-      ? ACTIVE_CAPSULE_LEFT[activeMode]
-      : 0;
 
   return (
     <div data-testid="bottom-nav" className={cn("relative h-10 w-[168px]", className)}>
-
-      {/* Base pill — Figma: surface #18181b, border #27272a, soft white outer glow */}
       <div
         data-testid="bottom-nav-pill"
         className={cn(
-          "absolute inset-0 flex items-center justify-between rounded-[100px] px-4 py-2",
+          "absolute inset-0 flex items-center rounded-[100px]",
           "no-lightboard bg-[var(--accent-contrast)] border border-[var(--border-card)] [box-shadow:var(--shadow-bottom-nav-pill)]",
         )}
       >
-        {/* Button 1: Tele (avatar + voice) */}
         <button
           data-testid="bottom-nav-tele-btn"
           onClick={handleTeleButton}
           className={cn(
-            "relative z-[1] flex size-6 items-center justify-center transition-colors",
-            teleActive ? "text-[var(--accent-strong)]" : inactiveIcon,
+            "flex-1 flex h-full items-center justify-center rounded-[100px] no-lightboard transition-colors",
+            teleActive ? ACTIVE : INACTIVE,
           )}
           aria-label={teleActive ? "Disconnect Tele" : "Switch to Tele"}
         >
-          {teleActive ? (
-            <X size={18} className="text-[var(--accent-strong)]" />
-          ) : (
-            <SparklesIcon />
-          )}
+          <SparklesIcon />
         </button>
 
-        {/* Button 2: Voice only */}
         <button
           data-testid="bottom-nav-voice-btn"
           onClick={handleVoiceButton}
           className={cn(
-            "absolute z-[1] flex size-6 items-center justify-center transition-colors",
-            voiceActive ? "text-[var(--accent-strong)]" : inactiveIcon,
+            "flex-1 flex h-full items-center justify-center rounded-[100px] no-lightboard transition-colors",
+            voiceActive ? ACTIVE : INACTIVE,
           )}
-          style={{ left: 71, top: 7 }}
           aria-label={voiceActive ? "Disconnect voice" : "Voice only"}
         >
           <SoundwaveIcon />
         </button>
 
-        {/* Button 3: Chat */}
         <button
           data-testid="bottom-nav-chat-btn"
           onClick={handleChatButton}
           className={cn(
-            "relative z-[1] flex size-6 items-center justify-center transition-colors",
-            chatActive ? "text-[var(--accent-strong)]" : inactiveIcon,
+            "flex-1 flex h-full items-center justify-center rounded-[100px] no-lightboard transition-colors",
+            chatActive ? ACTIVE : INACTIVE,
           )}
           aria-label={chatActive ? "Disconnect chat" : "Chat"}
         >
           <ChatIcon />
         </button>
       </div>
-
-      {/* Active capsule — Figma SelectedToggleItem: #1c1c1e fill, #1ed25e border + green glow */}
-      {showActiveCapsule && (
-        <div
-          data-testid="bottom-nav-connected-glow"
-          className={cn(
-            "pointer-events-none absolute top-0 z-[2] flex h-full items-center justify-center rounded-[100px] py-2",
-            "border border-[var(--accent-strong)] bg-[var(--surface-bottom-nav-capsule)]",
-            "shadow-[0px_0px_8px_0px_var(--accent-strong)]",
-            "transition-[left] duration-200 ease-out",
-          )}
-          style={{ left: activeCapsuleLeft, width: ACTIVE_CAPSULE_W }}
-        >
-          {activeMode === "tele" && <X size={18} className="text-[var(--accent-strong)]" />}
-          {activeMode === "voice" && (
-            <SoundwaveIcon className="size-6 text-[var(--accent-strong)]" />
-          )}
-          {activeMode === "chat" && <ChatIcon className="size-6 text-[var(--accent-strong)]" />}
-        </div>
-      )}
     </div>
   );
 }

@@ -1,10 +1,6 @@
-import { DotPlot } from "./DotPlot";
-
-interface SkillProgressionItem {
-  name: string;
-  current_level: number;
-  target_level: number;
-}
+'use client';
+import { DotPlot } from "@/components/charts/DotPlot";
+import type { SkillProgressionItem } from "@/utils/computeProfileMetrics";
 
 interface SkillGroupProps {
   label?: string;
@@ -17,6 +13,7 @@ export function SkillGroup({ label, skills }: SkillGroupProps) {
       {label && (
         <div className="flex gap-1 items-center">
           <span className="text-white text-base font-bold">{label}</span>
+          
         </div>
       )}
       <div className="flex flex-col gap-4">
@@ -37,5 +34,3 @@ export function SkillGroup({ label, skills }: SkillGroupProps) {
     </div>
   );
 }
-
-export default SkillGroup;

@@ -1,4 +1,6 @@
-import { motion } from "framer-motion";
+'use client';
+
+import { motion } from "motion/react";
 
 export function ConnectingScreen() {
   return (
@@ -11,7 +13,6 @@ export function ConnectingScreen() {
       exit={{ opacity: 0 }}
       transition={{ duration: 0.3 }}
     >
-      {/* Large outer breathing glow — same green as EntryPoint */}
       <div
         className="absolute rounded-full animate-pulse pointer-events-none"
         style={{
@@ -26,9 +27,7 @@ export function ConnectingScreen() {
         }}
       />
 
-      {/* Center element: wordmark + rings */}
       <div className="relative flex items-center justify-center">
-        {/* Pulsing glow directly behind the wordmark */}
         <div
           className="absolute rounded-full animate-pulse"
           style={{
@@ -39,7 +38,6 @@ export function ConnectingScreen() {
           }}
         />
 
-        {/* Slow-spinning border ring */}
         <div
           className="absolute rounded-full animate-spin"
           style={{
@@ -51,7 +49,6 @@ export function ConnectingScreen() {
           }}
         />
 
-        {/* Outer faint ring — counter-spin for depth */}
         <div
           className="absolute rounded-full animate-spin"
           style={{
@@ -64,7 +61,6 @@ export function ConnectingScreen() {
           }}
         />
 
-        {/* trAIn wordmark */}
         <span
           className="relative font-bold tracking-tight leading-none select-none"
           style={{ fontSize: 48, color: "#fff" }}
@@ -73,7 +69,6 @@ export function ConnectingScreen() {
         </span>
       </div>
 
-      {/* Status text */}
       <p
         className="absolute font-medium tracking-wide text-sm"
         style={{

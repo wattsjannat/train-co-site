@@ -1,3 +1,4 @@
+'use client';
 import { ChevronUp } from "lucide-react";
 
 const RADIUS = 40;
@@ -10,8 +11,18 @@ const ACCENT_STROKE: Record<"green" | "amber" | "red", string> = {
 };
 
 interface CircularGaugeProps {
+  /**
+   * Percentage value 0–100.
+   *   – ≥ 75 → green ring (#1dc558)
+   *   – < 75  → yellow ring (#f59e0b)
+   *
+   * Omit to render the Career Velocity state: full green ring
+   * with three stacked upward chevrons instead of a number.
+   */
   percentage?: number;
+  /** Outer diameter in px. Default: 98. */
   size?: number;
+  /** When set, overrides default green/amber split for the progress arc. */
   accent?: "green" | "amber" | "red";
 }
 
@@ -34,6 +45,7 @@ export function CircularGauge({ percentage, size = 98, accent }: CircularGaugePr
       className="relative flex items-center justify-center shrink-0"
       style={{ width: size, height: size }}
     >
+      {/* SVG ring */}
       <svg
         width={size}
         height={size}
@@ -41,6 +53,7 @@ export function CircularGauge({ percentage, size = 98, accent }: CircularGaugePr
         className="absolute inset-0"
         aria-hidden="true"
       >
+        {/* Track — always full dark ring */}
         <circle
           cx="50"
           cy="50"
@@ -49,6 +62,7 @@ export function CircularGauge({ percentage, size = 98, accent }: CircularGaugePr
           stroke="var(--surface-muted)"
           strokeWidth="10"
         />
+        {/* Coloured progress arc (or full ring for velocity) */}
         <circle
           cx="50"
           cy="50"
@@ -64,8 +78,10 @@ export function CircularGauge({ percentage, size = 98, accent }: CircularGaugePr
         />
       </svg>
 
+      {/* Center content */}
       <div className="relative z-10 flex items-center justify-center">
         {isVelocity ? (
+          /* 3 stacked upward chevrons — Career Velocity indicator */
           <div className="flex flex-col items-center" style={{ gap: -4 }}>
             <ChevronUp size={13} className="text-[var(--text-primary)] opacity-50" />
             <ChevronUp size={13} className="text-[var(--text-primary)] opacity-75" />
@@ -83,5 +99,3 @@ export function CircularGauge({ percentage, size = 98, accent }: CircularGaugePr
     </div>
   );
 }
-
-export default CircularGauge;

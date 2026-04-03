@@ -1,8 +1,8 @@
+'use client';
 import { useEffect, useMemo, useRef } from "react";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import { useSpeechFallbackNudge } from "@/hooks/useSpeechFallbackNudge";
 import { informTele } from "@/utils/teleUtils";
-import { HAD_SESSION_AT_APP_START } from "@/utils/visitorMemory";
 import { useCurrentSection } from "@/contexts/CurrentSectionContext";
 
 /**
@@ -43,8 +43,6 @@ export function Dashboard() {
     );
   }, []);
 
-  const isReturning = HAD_SESSION_AT_APP_START;
-
   const dashboardLandingJson =
     '{"badge":"trAIn CAREER","title":"Dashboard","subtitle":"Your Profile",' +
     '"generativeSubsections":[{"id":"dashboard","templateId":"Dashboard","props":{}},' +
@@ -57,25 +55,19 @@ export function Dashboard() {
       "this is your profile",
       "here's your profile",
     ],
-    instruction: isReturning
-      ? "[SYSTEM] Dashboard is visible but you have not spoken the required lines yet. " +
-        "Give the user a brief personalised insight about where they stand today — reference their Skill Coverage percentage, " +
-        "their Market Relevance score, and one concrete next step they should take (e.g. improve a skill gap, browse a new job opening, or follow up on an application). " +
-        "End by asking what they'd like to focus on. Keep it to 2–3 sentences. " +
-        "Do NOT call fetchCandidate, fetchJobs, or fetchSkills — the frontend handles data loading. " +
-        "Do NOT deliver the ProfileSheet tutorial — that belongs exclusively in ProfileSheet. " +
-        "Include navigateToSection with EXACTLY: " + dashboardLandingJson
-      : "[SYSTEM] Dashboard is visible but you have not spoken the required lines yet. " +
-        "Your next response MUST include ALL of the following speech in order, in a SINGLE response:\n" +
-        '1. "Tap this icon to access it at any time."\n' +
-        '2. "This is your profile. Let\'s take a look."\n' +
-        '3. "Based on everything I know about you, I picked a Target Role you should grow towards. You may change this at any time."\n' +
-        '4. "Your Skill Coverage tells you how close you are to your Target Role."\n' +
-        '5. "Your Market Relevance measures how closely your skills align with market demands."\n' +
-        '6. "Your Career Growth measures how quickly your growth is turning into real opportunities."\n' +
-        '7. "You may tap on any of these to see more details, or you can ask me directly."\n' +
-        "Say ALL seven lines in one response. Do not stop early. Do not wait for user input between them. " +
-        "Include navigateToSection with EXACTLY: " + dashboardLandingJson,
+    instruction:
+      "[SYSTEM] Dashboard is visible but you have not spoken the required lines yet. " +
+      "Your next response MUST include ALL of the following speech in order, in a SINGLE response:\n" +
+      '1. "Tap this icon to access it at any time."\n' +
+      '2. "This is your profile. Let\'s take a look."\n' +
+      '3. "Based on everything I know about you, I picked a Target Role you should grow towards. You may change this at any time."\n' +
+      '4. "Your Skill Coverage tells you how close you are to your Target Role."\n' +
+      '5. "Your Market Relevance measures how closely your skills align with market demands."\n' +
+      '6. "Your Career Growth measures how quickly your growth is turning into real opportunities."\n' +
+      '7. "You may tap on any of these to see more details, or you can ask me directly."\n' +
+      "Say ALL seven lines in one response. Do not stop early. Do not wait for user input between them. " +
+      "Include navigateToSection with EXACTLY: " +
+      dashboardLandingJson,
     delayMs: 1500,
   });
 

@@ -1,3 +1,4 @@
+'use client';
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { Share2, Crosshair, Briefcase, FileText, ChevronRight } from "lucide-react";
 import { CircularGauge } from "@/components/charts/CircularGauge";
@@ -7,16 +8,26 @@ import {
   navigateClientToSavedJobsStack,
   navigateClientToMyLearning,
   navigateClientToTargetRole,
+  navigateClientToSkillsDetail,
+  navigateClientToMarketRelevanceDetail,
+  navigateClientToCareerGrowthDetail,
 } from "@/utils/clientDashboardNavigate";
-import { notifyTele } from "@/utils/teleUtils";
+import { informTele, notifyTele } from "@/utils/teleUtils";
 import { BottomSheet } from "@/components/ui/BottomSheet";
 import { useSpeechFallbackNudge } from "@/hooks/useSpeechFallbackNudge";
 import { useVoiceActions } from "@/hooks/useVoiceActions";
 import { useTeleSpeech } from "@/hooks/useTeleSpeech";
 import { SpotlightOverlay } from "@/components/ui/SpotlightOverlay";
-import { computeProfileMetrics, type SkillData, extractGaugeScores } from "@/utils/computeProfileMetrics";
-import { mapRawSkillProgression } from "@/utils/computeProfileMetrics";
+import {
+  computeProfileMetrics,
+  type SkillData,
+  extractGaugeScores,
+  mapRawSkillProgression,
+  extractMarketRelevancePercent,
+  extractCareerGrowthPercent,
+} from "@/utils/computeProfileMetrics";
 import { useMcpCache } from "@/contexts/McpCacheContext";
+import { logMcpUiMilestone } from "@/utils/mcpUiDebug";
 // TODO: replace with real-time value from a fetchApplications tool when available
 import { activeApplications } from "@/mocks/jobApplicationData";
 import { SAVED_JOBS_MOCK } from "@/mocks/savedJobsData";
@@ -67,6 +78,10 @@ interface ProfileSheetProps {
   rawSkillProgression?: Record<string, unknown>;
   /** Legacy: pre-mapped skill data. Prefer rawSkillProgression. */
   skillData?: SkillData;
+  /** Raw `get_market_relevance` body — merged from MCP cache on dashboard when available. */
+  rawMarketRelevance?: Record<string, unknown>;
+  /** Raw `get_career_growth` body — merged from MCP cache on dashboard when available. */
+  rawCareerGrowth?: Record<string, unknown>;
   /** Target role name (e.g. "Senior AI Architect"). Shown in a sub-card. */
   targetRole?: string;
   /** Skills remaining to reach target role. */
@@ -100,6 +115,8 @@ export function ProfileSheet({
   avatarUrl,
   rawSkillProgression,
   skillData: legacyData,
+  rawMarketRelevance,
+  rawCareerGrowth,
   targetRole,
   skillCoverage,
   marketRelevance,
@@ -118,32 +135,85 @@ export function ProfileSheet({
   const cache = useMcpCache();
   const gaugeFromCache = useMemo(() => extractGaugeScores(cache.skills), [cache.skills]);
 
-  // Market relevance: read overall_score from the dedicated endpoint cache (73 → 84 after learning).
-  // gaugeFromCache.marketRelevance comes from skill_map[AI Engineering].market_avg — a constant
-  // industry benchmark (always 70), NOT the candidate's score. Use it only as last resort.
+  // trainco-v1: Market relevance gauge uses get_market_relevance `overall_score` (cache / props).
+  // gaugeFromCache.marketRelevance is skill_map["AI Engineering"].market_avg (~70) — industry benchmark,
+  // not the candidate score — use only as last resort. Never use computeProfileMetrics().marketRelevance
+  // here; it is the same skill_map benchmark and would mask the dedicated tool.
+  const mrFromDedicatedProps = useMemo(
+    () => extractMarketRelevancePercent(rawMarketRelevance),
+    [rawMarketRelevance],
+  );
+
   const mrFromDedicatedCache = useMemo(
-    () => (cache.marketRelevance as Record<string, unknown> | null)?.overall_score as number | undefined,
+    () => extractMarketRelevancePercent(cache.marketRelevance),
     [cache.marketRelevance],
   );
 
-  // Career growth: read market_percentile from the dedicated endpoint cache (68 → 76 after learning).
-  // computeProfileMetrics intentionally leaves careerGrowth undefined, causing the gauge to show
-  // velocity chevrons instead of a score when this dedicated cache slot is not used.
-  const cgPercentile = useMemo(() => {
-    const cgData = cache.careerGrowth as Record<string, unknown> | null;
-    const traj = cgData?.compensation_trajectory as Record<string, unknown> | undefined;
-    return traj?.market_percentile as number | undefined;
-  }, [cache.careerGrowth]);
+  const cgPercentileFromProps = useMemo(
+    () => extractCareerGrowthPercent(rawCareerGrowth),
+    [rawCareerGrowth],
+  );
 
+  const cgPercentile = useMemo(
+    () => extractCareerGrowthPercent(cache.careerGrowth),
+    [cache.careerGrowth],
+  );
+
+  // Skill coverage: explicit prop → computeProfileMetrics (v1: progression avg, then skill_map AI row) → skills cache
   const resolvedSkillCoverage = skillCoverage ?? computed.skillCoverage ?? gaugeFromCache.skillCoverage;
-  // Market relevance priority:
-  //   1. Explicit prop from AI         (overrides everything — AI knows best)
-  //   2. mrFromDedicatedCache          (cache.marketRelevance.overall_score: 73 before, 84 after)
-  //   3. gaugeFromCache.marketRelevance (skill_map[AI Engineering].market_avg: constant 70 — last resort)
-  // NOTE: computed.marketRelevance is intentionally excluded here — it reads market_avg (70, a constant
-  // industry benchmark) not the candidate's actual score, so including it would always block #2.
-  const resolvedMarketRelevance = marketRelevance ?? mrFromDedicatedCache ?? gaugeFromCache.marketRelevance;
-  const resolvedCareerGrowth = careerGrowth ?? cgPercentile ?? computed.careerGrowth ?? gaugeFromCache.careerGrowth;
+  // Order matches trainco-v1 ProfileSheet: prop → dedicated tool → skill_map benchmark fallback only
+  const resolvedMarketRelevance =
+    marketRelevance ?? mrFromDedicatedProps ?? mrFromDedicatedCache ?? gaugeFromCache.marketRelevance;
+  const resolvedCareerGrowth =
+    careerGrowth ??
+    cgPercentileFromProps ??
+    cgPercentile ??
+    computed.careerGrowth ??
+    gaugeFromCache.careerGrowth;
+
+  useEffect(() => {
+    logMcpUiMilestone("ProfileSheet gauges resolved", {
+      dashboardAnchor,
+      skillCoverage: resolvedSkillCoverage ?? "MISSING",
+      marketRelevance: resolvedMarketRelevance ?? "MISSING",
+      careerGrowth: resolvedCareerGrowth ?? "MISSING",
+      sources: {
+        skillFromProp: skillCoverage != null,
+        skillFromComputed: computed.skillCoverage != null,
+        skillFromCacheGauge: gaugeFromCache.skillCoverage != null,
+        mrFromProps: mrFromDedicatedProps != null,
+        mrFromCache: mrFromDedicatedCache != null,
+        cgFromProps: cgPercentileFromProps != null,
+        cgFromCache: cgPercentile != null,
+      },
+      rawInputsPresent: {
+        rawSkillProgression: rawSkillProgression != null,
+        rawMarketRelevance: rawMarketRelevance != null,
+        rawCareerGrowth: rawCareerGrowth != null,
+        cacheSkills: cache.skills != null,
+        cacheMarketRelevance: cache.marketRelevance != null,
+        cacheCareerGrowth: cache.careerGrowth != null,
+      },
+    });
+  }, [
+    dashboardAnchor,
+    resolvedSkillCoverage,
+    resolvedMarketRelevance,
+    resolvedCareerGrowth,
+    skillCoverage,
+    computed.skillCoverage,
+    gaugeFromCache.skillCoverage,
+    mrFromDedicatedProps,
+    mrFromDedicatedCache,
+    cgPercentileFromProps,
+    cgPercentile,
+    rawSkillProgression,
+    rawMarketRelevance,
+    rawCareerGrowth,
+    cache.skills,
+    cache.marketRelevance,
+    cache.careerGrowth,
+  ]);
 
   const skillGaugeAccent = useMemo((): "green" | "amber" | undefined => {
     if (resolvedSkillCoverage === undefined) return undefined;
@@ -160,6 +230,25 @@ export function ProfileSheet({
   const appsLabel = `${resolvedAppsCount} application${resolvedAppsCount === 1 ? "" : "s"}`;
   const resolvedSavedJobsCount = savedJobsCount ?? SAVED_JOBS_MOCK.length;
   const savedLabel = `${resolvedSavedJobsCount} saved job${resolvedSavedJobsCount === 1 ? "" : "s"}`;
+
+  const metricsNudgeSentRef = useRef(false);
+  useEffect(() => {
+    if (!dashboardAnchor || metricsNudgeSentRef.current) return;
+    if (
+      resolvedSkillCoverage !== undefined &&
+      resolvedMarketRelevance !== undefined &&
+      resolvedCareerGrowth !== undefined
+    ) {
+      return;
+    }
+    metricsNudgeSentRef.current = true;
+    informTele(
+      "[SYSTEM] ProfileSheet (dashboard): Skill Coverage, Market Relevance, and/or Career Growth gauges are empty. " +
+        "The SPA is fetching metric data automatically — do NOT call get_skill_progression, get_market_relevance, or get_career_growth. " +
+        "Do NOT call navigateToSection. Do NOT navigate to SkillsDetail or SkillCoverageSheet. " +
+        "Say a short line like 'Loading your profile metrics…' and wait for the data to appear.",
+    );
+  }, [dashboardAnchor, resolvedSkillCoverage, resolvedMarketRelevance, resolvedCareerGrowth]);
 
   const { speech, isTalking } = useTeleSpeech();
   const [glow, setGlow] = useState<GlowSection | null>(null);
@@ -283,13 +372,38 @@ export function ProfileSheet({
     }
   }, []);
 
+  /** SkillsDetail first (Career Path card); SkillCoverageSheet only via "View Skill Coverage" bubble. */
+  const emitSkillCoverageNav = useCallback(() => {
+    if (navigateClientToSkillsDetail()) {
+      void notifyTele("user clicked: Skill Coverage", { skipNavigateDrift: true });
+    } else {
+      void sendTappedIntent("Skill Coverage");
+    }
+  }, []);
+
+  const emitMarketRelevanceNav = useCallback(() => {
+    if (navigateClientToMarketRelevanceDetail()) {
+      void notifyTele("user clicked: Market Relevance", { skipNavigateDrift: true });
+    } else {
+      void sendTappedIntent("Market Relevance");
+    }
+  }, []);
+
+  const emitCareerGrowthNav = useCallback(() => {
+    if (navigateClientToCareerGrowthDetail()) {
+      void notifyTele("user clicked: Career Growth", { skipNavigateDrift: true });
+    } else {
+      void sendTappedIntent("Career Growth");
+    }
+  }, []);
+
   useVoiceActions(
     useMemo(() => {
       const actions = [
         { phrases: ["share", "share profile"], action: () => void sendTappedIntent("share profile") },
-        { phrases: ["skill coverage", "skills"], action: () => void sendTappedIntent("Skill Coverage") },
-        { phrases: ["market relevance", "market"], action: () => void sendTappedIntent("Market Relevance") },
-        { phrases: ["career growth", "career"], action: () => void sendTappedIntent("Career Growth") },
+        { phrases: ["skill coverage", "skills"], action: () => void emitSkillCoverageNav() },
+        { phrases: ["market relevance", "market"], action: () => void emitMarketRelevanceNav() },
+        { phrases: ["career growth", "career"], action: () => void emitCareerGrowthNav() },
         { phrases: ["target role", "view target role", "my target role"], action: emitTargetRoleNav },
         {
           phrases: ["my learning", "learning", "learning path", "learning dashboard"],
@@ -311,7 +425,16 @@ export function ProfileSheet({
         });
       }
       return actions;
-    }, [dashboardAnchor, emitApplicationsSelection, emitSavedJobsSelection, emitTargetRoleNav, emitMyLearningNav]),
+    }, [
+      dashboardAnchor,
+      emitApplicationsSelection,
+      emitSavedJobsSelection,
+      emitTargetRoleNav,
+      emitMyLearningNav,
+      emitSkillCoverageNav,
+      emitMarketRelevanceNav,
+      emitCareerGrowthNav,
+    ]),
   );
 
   const initials = (name ?? "").split(" ").filter(Boolean).map(w => w[0]).join("").toUpperCase().slice(0, 2);
@@ -414,7 +537,7 @@ export function ProfileSheet({
             percentage={resolvedSkillCoverage}
             gaugeAccent={skillGaugeAccent}
             glowing={glow === "skill-coverage"}
-            onClick={() => void sendTappedIntent("Skill Coverage")}
+            onClick={() => void emitSkillCoverageNav()}
           />
           <MetricColumn
             id="market-relevance"
@@ -422,7 +545,7 @@ export function ProfileSheet({
             percentage={resolvedMarketRelevance}
             gaugeAccent={marketGaugeAccent}
             glowing={glow === "market-relevance"}
-            onClick={() => void sendTappedIntent("Market Relevance")}
+            onClick={() => void emitMarketRelevanceNav()}
           />
           <MetricColumn
             id="career-growth"
@@ -430,7 +553,7 @@ export function ProfileSheet({
             percentage={resolvedCareerGrowth}
             gaugeAccent={resolvedCareerGrowth === undefined ? undefined : "green"}
             glowing={glow === "career-growth"}
-            onClick={() => void sendTappedIntent("Career Growth")}
+            onClick={() => void emitCareerGrowthNav()}
           />
         </div>
 
