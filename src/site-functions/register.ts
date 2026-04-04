@@ -167,9 +167,19 @@ export function registerSiteFunctions() {
   if (typeof window === 'undefined') return;
 
   window.__siteFunctions ??= {};
+  console.log('[Site Functions] registerSiteFunctions called at:', new Date().toISOString());
+  console.log('[Site Functions] Before registration, window.__siteFunctions has:', Object.keys(window.__siteFunctions));
+  
   for (const [name, entry] of Object.entries(siteFunctionManifest)) {
     /** Do not overwrite an already-installed handler (e.g. live `navigateToSection` from usePhaseFlow). */
-    if (window.__siteFunctions[name] !== undefined) continue;
+    if (window.__siteFunctions[name] !== undefined) {
+      console.log(`[Site Functions] Skipping ${name} (already registered)`);
+      continue;
+    }
     window.__siteFunctions[name] = entry.fn;
+    console.log(`[Site Functions] Registered ${name}`);
   }
+  
+  console.log('[Site Functions] After registration, total', Object.keys(window.__siteFunctions).length, 'functions:', Object.keys(window.__siteFunctions));
+  console.log('[Site Functions] navigateToSection type:', typeof window.__siteFunctions.navigateToSection);
 }
