@@ -1,9 +1,15 @@
 import type { NextConfig } from 'next';
 
+// Use /v2 basePath only for AWS deployments (when DEPLOY_TARGET=aws)
+// Mobeus hosted sites should be at root (no basePath)
+const isAwsDeployment = process.env.DEPLOY_TARGET === 'aws';
+
 const nextConfig: NextConfig = {
   output: 'export',
-  basePath: '/v2',
-  assetPrefix: '/v2',
+  ...(isAwsDeployment && {
+    basePath: '/v2',
+    assetPrefix: '/v2',
+  }),
   images: {
     unoptimized: true,
   },

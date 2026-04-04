@@ -38,7 +38,7 @@ echo ""
 
 # Step 2: Build the Next.js application
 echo -e "${YELLOW}Step 2: Building Next.js application...${NC}"
-npm run build
+DEPLOY_TARGET=aws npm run build
 echo -e "${GREEN}✓ Build complete${NC}"
 echo ""
 
